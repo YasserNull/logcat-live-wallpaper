@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">LogCat Live Wallpaper</string>
+    <string name="status_activated">App activated</string>
+    <string name="status_not_activated">App not activated</string>
+    <string name="menu_set_wallpaper">Set as wallpaper</string>
+    <string name="menu_activate">Activate app</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_source_code">Source code</string>
+    <string name="menu_donate">Donate</string>
+    <string name="url_source_code">https://github.com/ibnhadj/logcat-live-wallpaper</string>
+    <string name="url_donate">https://github.com/sponsors/ibnhadj</string>
+</resources>
