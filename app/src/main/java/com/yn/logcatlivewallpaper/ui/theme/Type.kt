@@ -1,3 +1,6 @@
+/*
+* Defines typography used by the app theme.
+*/
 package com.yn.logcatlivewallpaper.ui.theme
 
 import androidx.compose.material3.Typography

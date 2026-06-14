@@ -25,4 +25,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "LogCat Live Wallpaper"
 include(":app")
- 

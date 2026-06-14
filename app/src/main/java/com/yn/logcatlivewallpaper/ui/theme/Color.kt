@@ -1,3 +1,6 @@
+/*
+* Defines shared theme colors for the app.
+*/
 package com.yn.logcatlivewallpaper.ui.theme
 
 import androidx.compose.ui.graphics.Color

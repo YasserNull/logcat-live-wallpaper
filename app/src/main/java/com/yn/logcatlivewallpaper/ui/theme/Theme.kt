@@ -1,3 +1,6 @@
+/*
+* Provides the Compose theme and color scheme.
+*/
 package com.yn.logcatlivewallpaper.ui.theme
 
 import android.os.Build

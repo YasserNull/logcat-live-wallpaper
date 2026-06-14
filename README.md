@@ -1,1 +1,1 @@
-# logcat-live-wallpaper
+# LogCat Live Wallpaper

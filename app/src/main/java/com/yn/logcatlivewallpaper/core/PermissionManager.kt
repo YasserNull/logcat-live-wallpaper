@@ -1,30 +1,22 @@
-package com.yn.logcatlivewallpaper
+/*
+* Manages logcat access through Shizuku root or normal shell.
+*/
+package com.yn.logcatlivewallpaper.core
 
-import android.app.Activity
-import android.content.Context
 import android.content.pm.PackageManager
 import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuProvider
 import java.io.InputStream
 
 enum class PermissionMethod { SHIZUKU, ROOT }
 
 object PermissionManager {
-    private const val PACKAGE = "com.yn.logcatlivewallpaper"
-    private const val PERMISSION = "android.permission.READ_LOGS"
     private const val SHIZUKU_REQUEST_CODE = 1001
 
     private var shizukuListenerRegistered = false
-    @Volatile
-    var activationTimestamp = 0L
 
     private val shizukuPermissionListener = object : Shizuku.OnRequestPermissionResultListener {
         override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-            if (requestCode == SHIZUKU_REQUEST_CODE && grantResult == PackageManager.PERMISSION_GRANTED) {
-                if (grantShizuku()) {
-                    activationTimestamp = System.currentTimeMillis()
-                }
-            }
+            // Shizuku permission is enough to run logcat through Shizuku.newProcess.
         }
     }
 
@@ -58,27 +50,46 @@ object PermissionManager {
         } catch (_: Exception) { false }
     }
 
-    fun hasReadLogsPermission(context: Context): Boolean {
-        return context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
+    fun preferredAvailableMethod(): String {
+        return when {
+            isShizukuAvailable() -> "shizuku"
+            isRootAvailable() -> "root"
+            else -> "none"
+        }
     }
 
-    fun isActivated(context: Context): Boolean {
-        return hasReadLogsPermission(context)
-    }
-
-    fun activate(method: String, context: Context): Boolean {
+    fun activate(method: String): Boolean {
         return when (method) {
-            "shizuku" -> activateShizuku(context)
-            "root" -> activateRoot(context)
+            "shizuku" -> activateShizuku()
+            "root" -> activateRoot()
             else -> false
         }
     }
 
-    private fun activateShizuku(context: Context): Boolean {
+    fun sanitizeSavedMethod(context: android.content.Context): String {
+        val settings = Preferences.getSettings(context)
+        if (isMethodReady(settings.permissionMethod)) {
+            return settings.permissionMethod
+        }
+        if (settings.permissionMethod == "shizuku" || settings.permissionMethod == "root") {
+            Preferences.saveSettings(context, settings.copy(permissionMethod = "none"))
+        }
+        return "none"
+    }
+
+    private fun isMethodReady(method: String): Boolean {
+        return when (method) {
+            "shizuku" -> isShizukuAvailable() && hasShizukuPermission()
+            "root" -> isRootAvailable()
+            else -> true
+        }
+    }
+
+    private fun activateShizuku(): Boolean {
         if (!isShizukuAvailable()) return false
         ensureShizukuListener()
         if (hasShizukuPermission()) {
-            return grantShizuku()
+            return true
         }
         try {
             Shizuku.requestPermission(SHIZUKU_REQUEST_CODE)
@@ -86,53 +97,25 @@ object PermissionManager {
         return false
     }
 
-    private fun activateRoot(context: Context): Boolean {
-        if (!isRootAvailable()) return false
-        return try {
-            val process = ProcessBuilder(
-                "su", "-c", "pm grant $PACKAGE $PERMISSION"
-            ).redirectErrorStream(true).start()
-            val ok = process.waitFor() == 0
-            if (ok) activationTimestamp = System.currentTimeMillis()
-            ok
-        } catch (_: Exception) { false }
+    private fun activateRoot(): Boolean {
+        return isRootAvailable()
     }
 
-    private fun grantShizuku(): Boolean {
-        return try {
-            val method = Shizuku::class.java.getDeclaredMethod(
-                "newProcess",
-                Array<String>::class.java,
-                Array<String>::class.java,
-                String::class.java
-            )
-            method.isAccessible = true
-            val process = method.invoke(
-                null,
-                arrayOf("sh", "-c", "pm grant $PACKAGE $PERMISSION"),
-                null,
-                null
-            )
-            val exitCode = process::class.java.getMethod("waitFor").invoke(process) as Int
-            val ok = exitCode == 0
-            if (ok) activationTimestamp = System.currentTimeMillis()
-            ok
-        } catch (_: Exception) { false }
-    }
-
-    fun startLogcat(context: Context): LogcatHandle? {
-        val s = SettingsManager.getSettings(context)
-        return when (s.permissionMethod) {
-            "shizuku" -> startShizukuLogcat(s.logcatFormat)
-            "root" -> startRootLogcat(s.logcatFormat)
-            else -> startDirectLogcat(s.logcatFormat)
+    fun startLogcat(context: android.content.Context): LogcatHandle? {
+        val s = Preferences.getSettings(context)
+        val method = sanitizeSavedMethod(context)
+        return when (method) {
+            "shizuku" -> startShizukuCommand(s.logcatCommand)
+            "root" -> startRootCommand(s.logcatCommand)
+            else -> startDirectCommand(s.logcatCommand)
         }
     }
 
-    fun clearLogcat(context: Context) {
-        val s = SettingsManager.getSettings(context)
+    fun clearLogcat(context: android.content.Context) {
+        val s = Preferences.getSettings(context)
+        val method = sanitizeSavedMethod(context)
         try {
-            when (s.permissionMethod) {
+            when (method) {
                 "shizuku" -> {
                     if (!isShizukuAvailable()) return
                     val method = Shizuku::class.java.getDeclaredMethod(
@@ -162,16 +145,16 @@ object PermissionManager {
         } catch (_: Exception) {}
     }
 
-    private fun startDirectLogcat(format: String): LogcatHandle? {
+    private fun startDirectCommand(command: String): LogcatHandle? {
         return try {
             val process = ProcessBuilder(
-                "logcat", "-v", format
+                "sh", "-c", command.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND }
             ).redirectErrorStream(true).start()
             LogcatHandle(process.inputStream, process)
         } catch (_: Exception) { null }
     }
 
-    private fun startShizukuLogcat(format: String): LogcatHandle? {
+    private fun startShizukuCommand(command: String): LogcatHandle? {
         return try {
             val method = Shizuku::class.java.getDeclaredMethod(
                 "newProcess",
@@ -182,7 +165,7 @@ object PermissionManager {
             method.isAccessible = true
             val process = method.invoke(
                 null,
-                arrayOf("logcat", "-v", format),
+                arrayOf("sh", "-c", command.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND }),
                 null,
                 null
             )
@@ -191,10 +174,10 @@ object PermissionManager {
         } catch (_: Exception) { null }
     }
 
-    private fun startRootLogcat(format: String): LogcatHandle? {
+    private fun startRootCommand(command: String): LogcatHandle? {
         return try {
             val process = ProcessBuilder(
-                "su", "-c", "logcat -v $format"
+                "su", "-c", command.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND }
             ).redirectErrorStream(true).start()
             LogcatHandle(process.inputStream, process)
         } catch (_: Exception) { null }
