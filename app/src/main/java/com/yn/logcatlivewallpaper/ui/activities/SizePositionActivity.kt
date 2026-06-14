@@ -41,9 +41,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.yn.logcatlivewallpaper.core.LogCatRenderer
+import com.yn.logcatlivewallpaper.core.PermissionManager
 import com.yn.logcatlivewallpaper.core.Preferences
 import com.yn.logcatlivewallpaper.ui.dialogs.SizePositionDialog
 import com.yn.logcatlivewallpaper.ui.theme.LogCatLiveWallpaperTheme
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class SizePositionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -272,25 +275,12 @@ private class SizePositionPreviewView(
     private var startY = 0f
     private var startWidth = 0f
     private var startHeight = 0f
-    private var sampleIndex = 0
-    private var lastSampleNanos = 0L
-
-    private val sampleLines = listOf(
-        "I/Preview: Size and position editor ready",
-        "D/Preview: Drag inside the box to move it",
-        "D/Preview: Drag a corner to resize it",
-        "W/Preview: Width and height can be edited from settings",
-        "E/Preview: Save applies the values to the live wallpaper"
-    )
+    private var logcatHandle: PermissionManager.LogcatHandle? = null
+    private var readerThread: Thread? = null
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running) return
-            if (lastSampleNanos == 0L || frameTimeNanos - lastSampleNanos > 50_000_000L) {
-                renderer.enqueueLine(sampleLines[sampleIndex % sampleLines.size])
-                sampleIndex += 1
-                lastSampleNanos = frameTimeNanos
-            }
             invalidate()
             Choreographer.getInstance().postFrameCallback(this)
         }
@@ -300,6 +290,7 @@ private class SizePositionPreviewView(
         Preferences.observer(context).registerOnSharedPreferenceChangeListener(this)
         renderer.updateSettings(currentSettings)
         Choreographer.getInstance().postFrameCallback(frameCallback)
+        startLogcatReader()
     }
 
     fun updateSettings(settings: Preferences.Settings) {
@@ -316,6 +307,11 @@ private class SizePositionPreviewView(
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         updateSettings(Preferences.getSettings(context))
+        if (key == "permission_method" || key == "logcat_command") {
+            stopLogcatReader()
+            renderer.clear()
+            startLogcatReader()
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -362,8 +358,36 @@ private class SizePositionPreviewView(
     override fun onDetachedFromWindow() {
         running = false
         Choreographer.getInstance().removeFrameCallback(frameCallback)
+        stopLogcatReader()
         Preferences.observer(context).unregisterOnSharedPreferenceChangeListener(this)
         super.onDetachedFromWindow()
+    }
+
+    private fun startLogcatReader() {
+        if (readerThread?.isAlive == true) return
+        readerThread = Thread {
+            try {
+                val handle = PermissionManager.startLogcat(context) ?: return@Thread
+                logcatHandle = handle
+                val reader = BufferedReader(InputStreamReader(handle.inputStream))
+                var line: String? = null
+                while (running && reader.readLine().also { line = it } != null) {
+                    line?.let { ln ->
+                        if (ln.isNotEmpty()) {
+                            renderer.enqueueLine(ln)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }.apply { isDaemon = true; start() }
+    }
+
+    private fun stopLogcatReader() {
+        logcatHandle?.destroy()
+        logcatHandle = null
+        readerThread?.interrupt()
+        readerThread = null
     }
 
     private fun logAreaContains(x: Float, y: Float): Boolean {

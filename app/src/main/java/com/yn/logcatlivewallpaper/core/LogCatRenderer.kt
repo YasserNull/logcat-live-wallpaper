@@ -188,9 +188,14 @@ class LogCatRenderer(private val context: Context) {
         synchronized(lines) {
             val area = logArea(w, h)
             val padding = 8f
-            val maxWidth = (area.width() - 2 * padding).coerceAtLeast(100f)
+            val fontMetrics = textPaint.fontMetrics
+            val topInset = padding + kotlin.math.max(0f, -fontMetrics.ascent - lineHeight)
+            val bottomInset = padding + kotlin.math.max(0f, fontMetrics.descent)
+            val contentWidth = (area.width() - 2 * padding).coerceAtLeast(1f)
+            val contentHeight = (area.height() - topInset - bottomInset).coerceAtLeast(lineHeight)
+            val maxWidth = contentWidth.coerceAtLeast(100f)
             val maxVisibleLines = if (lineHeight > 0f) {
-                maxOf(maxLines, kotlin.math.ceil(area.height() / lineHeight).toInt() + 4)
+                maxOf(maxLines, kotlin.math.ceil(contentHeight / lineHeight).toInt() + 4)
             } else {
                 maxLines
             }
@@ -213,9 +218,9 @@ class LogCatRenderer(private val context: Context) {
 
             canvas.save()
             canvas.rotate(settings.logRotation, area.centerX(), area.centerY())
-            canvas.clipRect(area)
-            canvas.translate(area.left, area.top)
-            var y = area.height() - scrollOffset
+            canvas.clipRect(area.left + padding, area.top + topInset, area.right - padding, area.bottom - bottomInset)
+            canvas.translate(area.left, area.top + topInset)
+            var y = contentHeight - scrollOffset
             for (idx in lines.indices.reversed()) {
                 if (y < -lineHeight) break
 
@@ -225,13 +230,13 @@ class LogCatRenderer(private val context: Context) {
                 if (settings.wrapWord) {
                     val wrapped = getWrappedLines(entry, maxWidth)
                     for (wIdx in wrapped.indices.reversed()) {
-                        if (y <= area.height() + lineHeight && y >= -lineHeight) {
+                        if (y <= contentHeight + lineHeight && y >= -lineHeight) {
                             canvas.drawText(wrapped[wIdx], padding, y, textPaint)
                         }
                         if (wIdx > 0) y -= lineHeight
                     }
                 } else {
-                    if (y <= area.height() + lineHeight && y >= -lineHeight) {
+                    if (y <= contentHeight + lineHeight && y >= -lineHeight) {
                         canvas.drawText(entry.text, padding, y, textPaint)
                     }
                 }

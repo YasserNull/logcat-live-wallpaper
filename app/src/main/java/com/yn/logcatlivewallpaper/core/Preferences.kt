@@ -35,7 +35,7 @@ object Preferences {
         val colorSilent: String = DEFAULT_COLOR_SILENT
     )
 
-    const val DEFAULT_LOGCAT_COMMAND = "logcat -c && logcat -v log"
+    const val DEFAULT_LOGCAT_COMMAND = "logcat -c && logcat -v tag"
     const val SCROLL_MODE_SMOOTH = "smooth"
     const val SCROLL_MODE_TERMINAL = "terminal"
     const val FONT_CGA = "__cga__"

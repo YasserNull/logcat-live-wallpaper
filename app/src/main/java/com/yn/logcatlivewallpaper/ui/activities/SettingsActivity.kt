@@ -653,6 +653,7 @@ class SettingsActivity : ComponentActivity() {
             CommandEditorDialog(
                 command = draftCommand,
                 onCommandChanged = { draftCommand = it },
+                onReset = { draftCommand = Preferences.DEFAULT_LOGCAT_COMMAND },
                 onSave = {
                     logcatCommand = draftCommand.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND }
                     saveSettings()

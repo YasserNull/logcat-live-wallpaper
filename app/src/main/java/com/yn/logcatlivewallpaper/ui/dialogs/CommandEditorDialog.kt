@@ -3,6 +3,7 @@
 */
 package com.yn.logcatlivewallpaper.ui.dialogs
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -17,6 +18,7 @@ import com.yn.logcatlivewallpaper.R
 fun CommandEditorDialog(
     command: String,
     onCommandChanged: (String) -> Unit,
+    onReset: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -37,8 +39,13 @@ fun CommandEditorDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel))
+            Row {
+                TextButton(onClick = onReset) {
+                    Text(stringResource(R.string.action_reset))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         }
     )
