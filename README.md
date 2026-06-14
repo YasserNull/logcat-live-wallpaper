@@ -19,6 +19,7 @@
   <img src="https://github.com/YasserNull/logcat-live-wallpaper/blob/main/docs/images/screenshot1.jpg" width="30%">
   <img src="https://github.com/YasserNull/logcat-live-wallpaper/blob/main/docs/images/screenshot2.jpg" width="30%">
 </p>
+
 ## Usage Tips
 ### Lock Screen
 It’s better to use this wallpaper only on the lock screen, since using it on the home screen may cause visual clutter while using the device.
