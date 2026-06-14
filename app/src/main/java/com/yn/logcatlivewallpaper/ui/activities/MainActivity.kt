@@ -98,7 +98,19 @@ class MainActivity : ComponentActivity() {
         if (preferredMethod == "none") return
 
         val current = Preferences.getSettings(this)
-        if (PermissionManager.activate(preferredMethod) && current.permissionMethod != preferredMethod) {
+        if (current.permissionMethod == preferredMethod) return
+
+        val grantedNow = PermissionManager.activate(preferredMethod) { granted ->
+            if (granted) {
+                runOnUiThread {
+                    Preferences.saveSettings(
+                        this,
+                        Preferences.getSettings(this).copy(permissionMethod = preferredMethod)
+                    )
+                }
+            }
+        }
+        if (grantedNow) {
             Preferences.saveSettings(this, current.copy(permissionMethod = preferredMethod))
         }
     }

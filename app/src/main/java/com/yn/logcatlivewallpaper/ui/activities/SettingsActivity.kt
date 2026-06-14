@@ -676,11 +676,23 @@ class SettingsActivity : ComponentActivity() {
             PermissionPickerDialog(
                 selectedMethod = permissionMethod,
                 onMethodSelected = { method ->
-                    permissionMethod = method
-                    saveSettings()
                     showPermissionPicker = false
-                    if (method != "none") {
-                        PermissionManager.activate(method)
+                    if (method == "none") {
+                        permissionMethod = method
+                        saveSettings()
+                    } else {
+                        val grantedNow = PermissionManager.activate(method) { granted ->
+                            if (granted) {
+                                runOnUiThread {
+                                    permissionMethod = method
+                                    saveSettings()
+                                }
+                            }
+                        }
+                        if (grantedNow) {
+                            permissionMethod = method
+                            saveSettings()
+                        }
                     }
                 },
                 onDismiss = { showPermissionPicker = false }

@@ -13,10 +13,14 @@ object PermissionManager {
     private const val SHIZUKU_REQUEST_CODE = 1001
 
     private var shizukuListenerRegistered = false
+    private var pendingShizukuActivationResult: ((Boolean) -> Unit)? = null
 
     private val shizukuPermissionListener = object : Shizuku.OnRequestPermissionResultListener {
         override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-            // Shizuku permission is enough to run logcat through Shizuku.newProcess.
+            if (requestCode == SHIZUKU_REQUEST_CODE) {
+                pendingShizukuActivationResult?.invoke(grantResult == PackageManager.PERMISSION_GRANTED)
+                pendingShizukuActivationResult = null
+            }
         }
     }
 
@@ -58,10 +62,19 @@ object PermissionManager {
         }
     }
 
-    fun activate(method: String): Boolean {
+    fun activate(method: String, onResult: ((Boolean) -> Unit)? = null): Boolean {
         return when (method) {
-            "shizuku" -> activateShizuku()
-            "root" -> activateRoot()
+            "shizuku" -> activateShizuku(onResult)
+            "root" -> {
+                if (onResult == null) {
+                    activateRoot()
+                } else {
+                    Thread {
+                        onResult.invoke(activateRoot())
+                    }.start()
+                    false
+                }
+            }
             else -> false
         }
     }
@@ -85,15 +98,19 @@ object PermissionManager {
         }
     }
 
-    private fun activateShizuku(): Boolean {
+    private fun activateShizuku(onResult: ((Boolean) -> Unit)?): Boolean {
         if (!isShizukuAvailable()) return false
         ensureShizukuListener()
         if (hasShizukuPermission()) {
             return true
         }
         try {
+            pendingShizukuActivationResult = onResult
             Shizuku.requestPermission(SHIZUKU_REQUEST_CODE)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            pendingShizukuActivationResult = null
+            onResult?.invoke(false)
+        }
         return false
     }
 
