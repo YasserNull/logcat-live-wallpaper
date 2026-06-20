@@ -16,37 +16,37 @@ import com.yn.logcatlivewallpaper.R
 
 @Composable
 fun CommandEditorDialog(
-    command: String,
-    onCommandChanged: (String) -> Unit,
-    onReset: () -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit
+  command: String,
+  onCommandChanged: (String) -> Unit,
+  onReset: () -> Unit,
+  onSave: () -> Unit,
+  onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_customize_command)) },
-        text = {
-            OutlinedTextField(
-                value = command,
-                onValueChange = onCommandChanged,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onSave) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onReset) {
-                    Text(stringResource(R.string.action_reset))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.settings_customize_command)) },
+    text = {
+      OutlinedTextField(
+        value = command,
+        onValueChange = onCommandChanged,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    },
+    confirmButton = {
+      TextButton(onClick = onSave) {
+        Text(stringResource(R.string.action_save))
+      }
+    },
+    dismissButton = {
+      Row {
+        TextButton(onClick = onReset) {
+          Text(stringResource(R.string.action_reset))
         }
-    )
+        TextButton(onClick = onDismiss) {
+          Text(stringResource(R.string.action_cancel))
+        }
+      }
+    },
+  )
 }

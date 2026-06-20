@@ -18,59 +18,62 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.yn.logcatlivewallpaper.core.PermissionManager
 import com.yn.logcatlivewallpaper.R
+import com.yn.logcatlivewallpaper.core.PermissionManager
 
 @Composable
 fun PermissionPickerDialog(
-    selectedMethod: String,
-    onMethodSelected: (String) -> Unit,
-    onDismiss: () -> Unit
+  selectedMethod: String,
+  onMethodSelected: (String) -> Unit,
+  onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_permission_method)) },
-        text = {
-            Column {
-                val available = mapOf(
-                    "none" to true,
-                    "shizuku" to PermissionManager.isShizukuAvailable(),
-                    "root" to PermissionManager.isRootAvailable()
-                )
-                listOf("none", "shizuku", "root").forEach { method ->
-                    val enabled = available[method] ?: false
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = enabled) { onMethodSelected(method) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = method == selectedMethod,
-                            enabled = enabled,
-                            onClick = {
-                                if (enabled) {
-                                    onMethodSelected(method)
-                                }
-                            }
-                        )
-                        Text(
-                            text = method.replaceFirstChar { it.uppercase() },
-                            color = if (enabled) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            }
-                        )
-                    }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.settings_permission_method)) },
+    text = {
+      Column {
+        val available =
+          mapOf(
+            "none" to true,
+            "shizuku" to PermissionManager.isShizukuAvailable(),
+            "root" to PermissionManager.isRootAvailable(),
+          )
+        listOf("none", "shizuku", "root").forEach { method ->
+          val enabled = available[method] ?: false
+          Row(
+            modifier =
+            Modifier
+              .fillMaxWidth()
+              .clickable(enabled = enabled) { onMethodSelected(method) }
+              .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            RadioButton(
+              selected = method == selectedMethod,
+              enabled = enabled,
+              onClick = {
+                if (enabled) {
+                  onMethodSelected(method)
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_close))
-            }
+              },
+            )
+            Text(
+              text = method.replaceFirstChar { it.uppercase() },
+              color =
+              if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+              } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+              },
+            )
+          }
         }
-    )
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = onDismiss) {
+        Text(stringResource(R.string.action_close))
+      }
+    },
+  )
 }

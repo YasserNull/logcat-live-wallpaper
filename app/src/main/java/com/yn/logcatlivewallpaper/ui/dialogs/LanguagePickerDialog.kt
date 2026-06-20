@@ -1,6 +1,3 @@
-/*
-* Shows the dialog for choosing the scroll mode.
-*/
 package com.yn.logcatlivewallpaper.ui.dialogs
 
 import androidx.compose.foundation.clickable
@@ -18,34 +15,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.yn.logcatlivewallpaper.R
-import com.yn.logcatlivewallpaper.core.Preferences
 
 @Composable
-fun ScrollModeDialog(
-  selectedMode: String,
-  onModeSelected: (String) -> Unit,
+fun LanguagePickerDialog(
+  selectedLanguage: String,
+  onLanguageSelected: (String) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  val languages = listOf(
+    "en" to "English",
+    "ar" to "العربية",
+    "fr" to "Français",
+    "hi" to "हिन्दी",
+    "zh" to "中文",
+    "ja" to "日本語",
+    "es" to "Español",
+  )
+
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text(stringResource(R.string.settings_scroll_mode)) },
+    title = { Text(stringResource(R.string.settings_language)) },
     text = {
       Column {
-        listOf(
-          Preferences.SCROLL_MODE_SMOOTH to stringResource(R.string.scroll_mode_smooth),
-          Preferences.SCROLL_MODE_TERMINAL to stringResource(R.string.scroll_mode_terminal),
-        ).forEach { (mode, label) ->
+        languages.forEach { (code, label) ->
           Row(
             modifier =
             Modifier
               .fillMaxWidth()
-              .clickable { onModeSelected(mode) }
+              .clickable { onLanguageSelected(code) }
               .padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             RadioButton(
-              selected = mode == selectedMode,
-              onClick = { onModeSelected(mode) },
+              selected = code == selectedLanguage,
+              onClick = { onLanguageSelected(code) },
             )
             Text(text = label)
           }

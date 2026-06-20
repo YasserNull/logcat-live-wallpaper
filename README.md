@@ -35,3 +35,6 @@ You can download and install Shappky via one of the following methods:
 **GitHub Releases**: Download the latest APK from the [Releases page](https://github.com/YasserNull/logcat-live-wallpaper/releases).
 ## License
 LogCat Live Wallpaper is licensed under the [GNU General Public License v3.0](LICENSE).
+## Donate
+If you want to support me, I would be very grateful. 
+[**Ko-fi**](https://ko-fi.com/yassernull)

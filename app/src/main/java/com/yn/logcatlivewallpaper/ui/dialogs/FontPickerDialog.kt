@@ -22,55 +22,58 @@ import com.yn.logcatlivewallpaper.core.Preferences
 
 @Composable
 fun FontPickerDialog(
-    selectedFontPath: String,
-    onBuiltInFontSelected: (String) -> Unit,
-    onCustomFontSelected: () -> Unit,
-    onDismiss: () -> Unit
+  selectedFontPath: String,
+  onBuiltInFontSelected: (String) -> Unit,
+  onCustomFontSelected: () -> Unit,
+  onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_change_font)) },
-        text = {
-            Column {
-                val options = listOf(
-                    Preferences.FONT_CGA to stringResource(R.string.font_int10h),
-                    Preferences.FONT_DEFAULT to stringResource(R.string.font_default),
-                    Preferences.FONT_UBUNTU to stringResource(R.string.font_ubuntu_bold)
-                )
-                options.forEach { (path, label) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onBuiltInFontSelected(path) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = path == selectedFontPath,
-                            onClick = { onBuiltInFontSelected(path) }
-                        )
-                        Text(text = label)
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onCustomFontSelected() }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedFontPath.isNotEmpty() && !selectedFontPath.startsWith("__"),
-                        onClick = onCustomFontSelected
-                    )
-                    Text(text = stringResource(R.string.font_custom))
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_close))
-            }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.settings_change_font)) },
+    text = {
+      Column {
+        val options =
+          listOf(
+            Preferences.FONT_CGA to stringResource(R.string.font_int10h),
+            Preferences.FONT_DEFAULT to stringResource(R.string.font_default),
+            Preferences.FONT_UBUNTU to stringResource(R.string.font_ubuntu_bold),
+          )
+        options.forEach { (path, label) ->
+          Row(
+            modifier =
+            Modifier
+              .fillMaxWidth()
+              .clickable { onBuiltInFontSelected(path) }
+              .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            RadioButton(
+              selected = path == selectedFontPath,
+              onClick = { onBuiltInFontSelected(path) },
+            )
+            Text(text = label)
+          }
         }
-    )
+        Row(
+          modifier =
+          Modifier
+            .fillMaxWidth()
+            .clickable { onCustomFontSelected() }
+            .padding(vertical = 6.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          RadioButton(
+            selected = selectedFontPath.isNotEmpty() && !selectedFontPath.startsWith("__"),
+            onClick = onCustomFontSelected,
+          )
+          Text(text = stringResource(R.string.font_custom))
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = onDismiss) {
+        Text(stringResource(R.string.action_close))
+      }
+    },
+  )
 }
