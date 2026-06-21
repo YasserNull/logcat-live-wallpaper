@@ -5,7 +5,6 @@ package com.yn.logcatlivewallpaper.core
 
 import android.content.Context
 import android.graphics.*
-import java.util.ArrayDeque
 
 class LogCatRenderer(
   private val context: Context,
@@ -20,7 +19,8 @@ class LogCatRenderer(
 
   private val lines = mutableListOf<LineEntry>()
   private val maxLines = 50
-  private val pendingEntries = ArrayDeque<LineEntry>()
+  private val pendingEntries = java.util.concurrent.ConcurrentLinkedQueue<LineEntry>()
+  private val pendingCount = java.util.concurrent.atomic.AtomicInteger(0)
   private val maxPendingLines = 50
 
   private val textPaint = Paint().apply { isAntiAlias = false }
@@ -32,6 +32,17 @@ class LogCatRenderer(
   private var scrollOffset = 0f
   private var terminalScrollProgress = 0f
   private var lastFrameTimeNanos = 0L
+  private var parsedBackgroundColor = Color.BLACK
+
+  private val priorityRegex = Regex("(?:^|\\s)([VDIWEFS])(?:/|\\s)")
+
+  private var parsedColorVerbose = Color.BLUE
+  private var parsedColorDebug = Color.GREEN
+  private var parsedColorInfo = Color.WHITE
+  private var parsedColorWarning = Color.YELLOW
+  private var parsedColorError = Color.RED
+  private var parsedColorFatal = Color.RED
+  private var parsedColorSilent = Color.CYAN
 
   private var settings: Preferences.Settings = Preferences.getSettings(context)
 
@@ -48,12 +59,36 @@ class LogCatRenderer(
     textPaint.textSize = settings.fontSizeSp * context.resources.displayMetrics.density
     lineHeight = textPaint.textSize * 1.25f
 
+    parsedBackgroundColor = try {
+      Color.parseColor(settings.backgroundColor)
+    } catch (_: Exception) {
+      Color.BLACK
+    }
+
+    parsedColorVerbose = parseColorOrDefault(settings.colorVerbose, Preferences.DEFAULT_COLOR_VERBOSE)
+    parsedColorDebug = parseColorOrDefault(settings.colorDebug, Preferences.DEFAULT_COLOR_DEBUG)
+    parsedColorInfo = parseColorOrDefault(settings.colorInfo, Preferences.DEFAULT_COLOR_INFO)
+    parsedColorWarning = parseColorOrDefault(settings.colorWarning, Preferences.DEFAULT_COLOR_WARNING)
+    parsedColorError = parseColorOrDefault(settings.colorError, Preferences.DEFAULT_COLOR_ERROR)
+    parsedColorFatal = parseColorOrDefault(settings.colorFatal, Preferences.DEFAULT_COLOR_FATAL)
+    parsedColorSilent = parseColorOrDefault(settings.colorSilent, Preferences.DEFAULT_COLOR_SILENT)
+
     // Reset wrap cache on settings change (font/size change)
     synchronized(lines) {
       for (entry in lines) {
         entry.wrapped = null
         entry.wrapWidth = -1f
       }
+    }
+  }
+
+  private fun parseColorOrDefault(colorStr: String, defaultColor: String): Int = try {
+    Color.parseColor(colorStr)
+  } catch (_: Exception) {
+    try {
+      Color.parseColor(defaultColor)
+    } catch (_: Exception) {
+      Color.BLACK
     }
   }
 
@@ -78,29 +113,29 @@ class LogCatRenderer(
   }
 
   fun enqueueLine(line: String) {
-    synchronized(lines) {
-      while (pendingEntries.size >= maxPendingLines) {
-        pendingEntries.removeFirst()
-      }
-      pendingEntries.addLast(LineEntry(line, lineColor(line)))
+    val color = lineColor(line)
+    pendingEntries.add(LineEntry(line, color))
+    if (pendingCount.incrementAndGet() > maxPendingLines) {
+      pendingEntries.poll()
+      pendingCount.decrementAndGet()
     }
   }
 
   private fun lineColor(line: String): Int {
     val priority =
-      Regex("(?:^|\\s)([VDIWEFS])(?:/|\\s)")
+      priorityRegex
         .find(line)
         ?.groupValues
         ?.getOrNull(1)
     return when (priority) {
-      "V" -> Color.parseColor(settings.colorVerbose)
-      "D" -> Color.parseColor(settings.colorDebug)
-      "I" -> Color.parseColor(settings.colorInfo)
-      "W" -> Color.parseColor(settings.colorWarning)
-      "E" -> Color.parseColor(settings.colorError)
-      "F" -> Color.parseColor(settings.colorFatal)
-      "S" -> Color.parseColor(settings.colorSilent)
-      else -> Color.parseColor(settings.colorInfo)
+      "V" -> parsedColorVerbose
+      "D" -> parsedColorDebug
+      "I" -> parsedColorInfo
+      "W" -> parsedColorWarning
+      "E" -> parsedColorError
+      "F" -> parsedColorFatal
+      "S" -> parsedColorSilent
+      else -> parsedColorInfo
     }
   }
 
@@ -142,25 +177,41 @@ class LogCatRenderer(
   ) {
     if (lineHeight <= 0f || (!force && scrollOffset < 0f) || pendingEntries.isEmpty()) return
 
-    val entry = pendingEntries.removeFirst()
-
-    val count =
-      if (settings.wrapWord && maxWidth > 0) {
-        getWrappedLines(entry, maxWidth).size
-      } else {
-        1
-      }
-
-    while (lines.size >= maxVisibleLines) {
-      lines.removeAt(0)
+    val currentPendingSize = pendingCount.get()
+    val batchSize = when {
+      currentPendingSize > 30 -> 4
+      currentPendingSize > 15 -> 2
+      else -> 1
     }
-    lines.add(entry)
-    scrollOffset =
-      if (settings.scrollMode == Preferences.SCROLL_MODE_TERMINAL) {
-        0f
-      } else {
-        -(count * lineHeight)
+
+    var totalLinesAdded = 0
+    var totalHeightAdded = 0f
+
+    for (i in 0 until batchSize) {
+      val entry = pendingEntries.poll() ?: break
+      pendingCount.decrementAndGet()
+      val count =
+        if (settings.wrapWord && maxWidth > 0) {
+          getWrappedLines(entry, maxWidth).size
+        } else {
+          1
+        }
+      while (lines.size >= maxVisibleLines) {
+        lines.removeAt(0)
       }
+      lines.add(entry)
+      totalLinesAdded++
+      totalHeightAdded += count * lineHeight
+    }
+
+    if (totalLinesAdded > 0) {
+      scrollOffset =
+        if (settings.scrollMode == Preferences.SCROLL_MODE_TERMINAL) {
+          0f
+        } else {
+          -totalHeightAdded
+        }
+    }
   }
 
   private fun getWrappedLines(
@@ -203,17 +254,8 @@ class LogCatRenderer(
         canvas.drawBitmap(bm, src, dst, null)
       }
     } else {
-      bgPaint.color = Color.parseColor(settings.backgroundColor)
+      bgPaint.color = parsedBackgroundColor
       canvas.drawRect(0f, 0f, w, h, bgPaint)
-    }
-
-    // Scrolling
-    if (settings.scrollMode == Preferences.SCROLL_MODE_SMOOTH && scrollOffset < 0f) {
-      val step = (lineHeight * settings.scrollSpeed * deltaTime * 1.5f).coerceAtLeast(0.1f * deltaTime)
-      scrollOffset += minOf(-scrollOffset, step)
-    } else if (settings.scrollMode == Preferences.SCROLL_MODE_TERMINAL) {
-      scrollOffset = 0f
-      terminalScrollProgress += lineHeight * settings.scrollSpeed * deltaTime * 1.5f
     }
 
     synchronized(lines) {
@@ -232,15 +274,37 @@ class LogCatRenderer(
           maxLines
         }
 
-      if (settings.scrollMode == Preferences.SCROLL_MODE_TERMINAL) {
+      if (settings.scrollMode == Preferences.SCROLL_MODE_SMOOTH) {
+        val currentPendingSize = pendingCount.get()
+        val speedFactor = if (currentPendingSize > 10) (currentPendingSize / 5f).coerceAtMost(5f) else 1f
+        var step = (lineHeight * settings.scrollSpeed * deltaTime * 1.5f * speedFactor).coerceAtLeast(0.1f * deltaTime)
+
+        while (step > 0f && (scrollOffset < 0f || pendingEntries.isNotEmpty())) {
+          if (scrollOffset < 0f) {
+            val remaining = -scrollOffset
+            if (step >= remaining) {
+              scrollOffset = 0f
+              step -= remaining
+            } else {
+              scrollOffset += step
+              step = 0f
+            }
+          } else {
+            appendNextPendingLine(maxWidth, maxVisibleLines)
+            if (scrollOffset >= 0f) {
+              break
+            }
+          }
+        }
+      } else if (settings.scrollMode == Preferences.SCROLL_MODE_TERMINAL) {
+        scrollOffset = 0f
+        terminalScrollProgress += lineHeight * settings.scrollSpeed * deltaTime * 1.5f
         while (terminalScrollProgress >= lineHeight && pendingEntries.isNotEmpty()) {
           terminalScrollProgress -= lineHeight
           appendNextPendingLine(maxWidth, maxVisibleLines, force = true)
         }
-      } else {
-        terminalScrollProgress = 0f
-        appendNextPendingLine(maxWidth, maxVisibleLines)
       }
+
       removeOffscreenLines(area.height())
 
       if (lines.isEmpty()) {
@@ -328,6 +392,7 @@ class LogCatRenderer(
     synchronized(lines) {
       lines.clear()
       pendingEntries.clear()
+      pendingCount.set(0)
       scrollOffset = 0f
       terminalScrollProgress = 0f
     }

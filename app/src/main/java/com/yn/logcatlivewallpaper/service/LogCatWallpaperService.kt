@@ -62,6 +62,7 @@ class LogCatWallpaperService : WallpaperService() {
       if (running && isVisible) {
         showWallpaper()
       }
+      updateSurfaceFrameRate(holder)
     }
 
     override fun onDestroy() {
@@ -99,6 +100,7 @@ class LogCatWallpaperService : WallpaperService() {
         showWallpaper()
       }
       drawFrame(System.nanoTime())
+      updateSurfaceFrameRate(holder)
     }
 
     override fun onVisibilityChanged(v: Boolean) {
@@ -190,6 +192,19 @@ class LogCatWallpaperService : WallpaperService() {
       logcatHandle = null
       readerThread?.interrupt()
       readerThread = null
+    }
+
+    private fun updateSurfaceFrameRate(holder: SurfaceHolder) {
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        try {
+          holder.surface?.let { surface ->
+            if (surface.isValid) {
+              surface.setFrameRate(120f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+            }
+          }
+        } catch (_: Exception) {
+        }
+      }
     }
   }
 }
