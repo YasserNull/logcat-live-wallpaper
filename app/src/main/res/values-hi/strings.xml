@@ -38,7 +38,10 @@
     <string name="settings_change_font">फ़ॉन्ट बदलें</string>
     <string name="settings_wrap_word">शब्द लपेटें</string>
     <string name="settings_customize_command">कमांड कस्टमाइज़ करें</string>
-    <string name="settings_permission_method">अनुमति विधि</string>
+    <string name="settings_permission">अनुमति</string>
+    <string name="permission_none">कोई नहीं</string>
+    <string name="permission_shizuku">शिज़ुकु</string>
+    <string name="permission_root">रूट</string>
     <string name="font_int10h">int10h.org</string>
     <string name="font_default">डिफ़ॉल्ट फ़ॉन्ट</string>
     <string name="font_ubuntu_bold">उबंटू बोल्ड</string>
@@ -46,6 +49,11 @@
     <string name="font_custom_fallback">कस्टम फ़ॉन्ट</string>
     <string name="url_source_code">https://github.com/YasserNull/logcat-live-wallpaper</string>
     <string name="menu_donate">दान करें</string>
-    <string name="url_donate">https://github.com/sponsors/YasserNull</string>
+    <string name="url_donate">https://ko-fi.com/yassernull</string>
     <string name="settings_language">भाषा</string>
+    <string name="settings_section_scroll">स्क्रॉलिंग</string>
+    <string name="settings_section_font">फ़ॉन्ट</string>
+    <string name="settings_section_background">पृष्ठभूमि</string>
+    <string name="settings_section_advanced">कमांड और अनुमतियां</string>
+    <string name="settings_section_about">जानकारी</string>
 </resources>

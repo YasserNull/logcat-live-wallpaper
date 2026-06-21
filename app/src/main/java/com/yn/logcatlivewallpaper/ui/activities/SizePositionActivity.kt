@@ -325,7 +325,7 @@ private class SizePositionPreviewView(
     key: String?,
   ) {
     updateSettings(Preferences.getSettings(context))
-    if (key == "permission_method" || key == "logcat_command") {
+    if (key == "permission" || key == "logcat_command") {
       stopLogcatReader()
       renderer.clear()
       startLogcatReader()

@@ -27,7 +27,7 @@
     <string name="settings_scroll_speed">سرعة التمرير: %.1f</string>
     <string name="settings_scroll_mode">وضع التمرير</string>
     <string name="scroll_mode_smooth">سلس</string>
-    <string name="scroll_mode_terminal">محطة طرفية</string>
+    <string name="scroll_mode_terminal">الطرفية</string>
     <string name="settings_change_size_position">تغيير الحجم والموقع</string>
     <string name="settings_width">العرض</string>
     <string name="settings_height">الارتفاع</string>
@@ -38,7 +38,10 @@
     <string name="settings_change_font">تغيير الخط</string>
     <string name="settings_wrap_word">التفاف الكلمات</string>
     <string name="settings_customize_command">تخصيص الأمر</string>
-    <string name="settings_permission_method">طريقة الصلاحية</string>
+    <string name="settings_permission">الصلاحية</string>
+    <string name="permission_none">لا شيء</string>
+    <string name="permission_shizuku">شيزيكو</string>
+    <string name="permission_root">روت</string>
     <string name="font_int10h">int10h.org</string>
     <string name="font_default">الخط الافتراضي</string>
     <string name="font_ubuntu_bold">أوبونتو عريض</string>
@@ -46,6 +49,11 @@
     <string name="font_custom_fallback">خط مخصص</string>
     <string name="url_source_code">https://github.com/YasserNull/logcat-live-wallpaper</string>
     <string name="menu_donate">تبرع</string>
-    <string name="url_donate">https://github.com/sponsors/YasserNull</string>
+    <string name="url_donate">https://ko-fi.com/yassernull</string>
     <string name="settings_language">اللغة</string>
+    <string name="settings_section_scroll">التمرير</string>
+    <string name="settings_section_font">الخط</string>
+    <string name="settings_section_background">الخلفية</string>
+    <string name="settings_section_advanced">الأمر والصلاحيات</string>
+    <string name="settings_section_about">حول التطبيق</string>
 </resources>

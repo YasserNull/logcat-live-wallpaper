@@ -38,7 +38,10 @@
     <string name="settings_change_font">Changer de police</string>
     <string name="settings_wrap_word">Retour à la ligne</string>
     <string name="settings_customize_command">Personnaliser la commande</string>
-    <string name="settings_permission_method">Méthode d\'autorisation</string>
+    <string name="settings_permission">Autorisation</string>
+    <string name="permission_none">Aucune</string>
+    <string name="permission_shizuku">Shizuku</string>
+    <string name="permission_root">Root</string>
     <string name="font_int10h">int10h.org</string>
     <string name="font_default">Police par défaut</string>
     <string name="font_ubuntu_bold">Ubuntu Bold</string>
@@ -46,6 +49,11 @@
     <string name="font_custom_fallback">Police personnalisée</string>
     <string name="url_source_code">https://github.com/YasserNull/logcat-live-wallpaper</string>
     <string name="menu_donate">Faire un don</string>
-    <string name="url_donate">https://github.com/sponsors/YasserNull</string>
+    <string name="url_donate">https://ko-fi.com/yassernull</string>
     <string name="settings_language">Langue</string>
+    <string name="settings_section_scroll">Défilement</string>
+    <string name="settings_section_font">Police</string>
+    <string name="settings_section_background">Arrière-plan</string>
+    <string name="settings_section_advanced">Commande &amp; Autorisations</string>
+    <string name="settings_section_about">À propos</string>
 </resources>

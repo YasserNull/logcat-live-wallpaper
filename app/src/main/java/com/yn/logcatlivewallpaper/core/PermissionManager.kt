@@ -87,11 +87,11 @@ object PermissionManager {
 
   fun sanitizeSavedMethod(context: android.content.Context): String {
     val settings = Preferences.getSettings(context)
-    if (isMethodReady(settings.permissionMethod)) {
-      return settings.permissionMethod
+    if (isMethodReady(settings.permission)) {
+      return settings.permission
     }
-    if (settings.permissionMethod == "shizuku" || settings.permissionMethod == "root") {
-      Preferences.saveSettings(context, settings.copy(permissionMethod = "none"))
+    if (settings.permission == "shizuku" || settings.permission == "root") {
+      Preferences.saveSettings(context, settings.copy(permission = "none"))
     }
     return "none"
   }

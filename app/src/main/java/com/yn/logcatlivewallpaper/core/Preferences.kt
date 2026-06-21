@@ -19,7 +19,7 @@ object Preferences {
     val logRotation: Float = 0f,
     val fontSizeSp: Int = 14,
     val logcatCommand: String = DEFAULT_LOGCAT_COMMAND,
-    val permissionMethod: String = "none",
+    val permission: String = "none",
     val backgroundColor: String = "#FF000000",
     val backgroundImage: String = "",
     val backgroundImageName: String = "",
@@ -80,7 +80,7 @@ object Preferences {
       logRotation = prefs.getFloat("log_rotation", 0f),
       fontSizeSp = prefs.getInt("font_size", 14),
       logcatCommand = command,
-      permissionMethod = prefs.getString("permission_method", "none") ?: "none",
+      permission = prefs.getString("permission", null) ?: prefs.getString("permission_method", "none") ?: "none",
       backgroundColor = prefs.getString("background_color", "#FF000000") ?: "#FF000000",
       backgroundImage = prefs.getString("background_image", "") ?: "",
       backgroundImageName = prefs.getString("background_image_name", "") ?: "",
@@ -119,7 +119,8 @@ object Preferences {
       .putFloat("log_rotation", settings.logRotation)
       .putInt("font_size", settings.fontSizeSp)
       .putString("logcat_command", settings.logcatCommand)
-      .putString("permission_method", settings.permissionMethod)
+      .putString("permission", settings.permission)
+      .remove("permission_method")
       .putString("background_color", settings.backgroundColor)
       .putString("background_image", settings.backgroundImage)
       .putString("background_image_name", settings.backgroundImageName)

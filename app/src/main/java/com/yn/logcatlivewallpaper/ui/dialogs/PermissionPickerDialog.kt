@@ -29,7 +29,7 @@ fun PermissionPickerDialog(
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text(stringResource(R.string.settings_permission_method)) },
+    title = { Text(stringResource(R.string.settings_permission)) },
     text = {
       Column {
         val available =
@@ -58,7 +58,12 @@ fun PermissionPickerDialog(
               },
             )
             Text(
-              text = method.replaceFirstChar { it.uppercase() },
+              text = when (method) {
+                "none" -> stringResource(R.string.permission_none)
+                "shizuku" -> stringResource(R.string.permission_shizuku)
+                "root" -> stringResource(R.string.permission_root)
+                else -> method.replaceFirstChar { it.uppercase() }
+              },
               color =
               if (enabled) {
                 MaterialTheme.colorScheme.onSurface

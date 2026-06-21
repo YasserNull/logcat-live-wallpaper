@@ -78,7 +78,7 @@ class LogCatWallpaperService : WallpaperService() {
       key: String?,
     ) {
       renderer.updateSettings(Preferences.getSettings(this@LogCatWallpaperService))
-      if (key == "permission_method" || key == "logcat_command") {
+      if (key == "permission" || key == "logcat_command") {
         stopLogcatReader()
         renderer.clear()
         if (visible) {

@@ -6,6 +6,7 @@ package com.yn.logcatlivewallpaper.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -85,6 +86,10 @@ class SettingsActivity : ComponentActivity() {
   @Composable
   private fun SettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val noBgImageFallback = stringResource(R.string.settings_no_background_image)
+    val customFontFallback = stringResource(R.string.font_custom_fallback)
+    val urlDonate = stringResource(R.string.url_donate)
+    val urlSourceCode = stringResource(R.string.url_source_code)
     BackHandler(onBack = onBack)
     val current = remember { Preferences.getSettings(context) }
     var scrollSpeed by remember { mutableFloatStateOf(current.scrollSpeed) }
@@ -96,7 +101,7 @@ class SettingsActivity : ComponentActivity() {
     var logRotation by remember { mutableFloatStateOf(current.logRotation) }
     var fontSize by remember { mutableIntStateOf(current.fontSizeSp) }
     var logcatCommand by remember { mutableStateOf(current.logcatCommand) }
-    var permissionMethod by remember { mutableStateOf(current.permissionMethod) }
+    var permission by remember { mutableStateOf(current.permission) }
     var backgroundColor by remember { mutableStateOf(current.backgroundColor) }
     var backgroundImage by remember { mutableStateOf(current.backgroundImage) }
     var backgroundImageName by remember { mutableStateOf(current.backgroundImageName) }
@@ -149,7 +154,7 @@ class SettingsActivity : ComponentActivity() {
         latestSettings.logRotation,
         fontSize,
         logcatCommand,
-        permissionMethod,
+        permission,
         backgroundColor,
         backgroundImage,
         backgroundImageName,
@@ -216,7 +221,7 @@ class SettingsActivity : ComponentActivity() {
               val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
               if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
             }
-            ?: context.getString(R.string.settings_no_background_image)
+            ?: noBgImageFallback
           val inputStream = context.contentResolver.openInputStream(it)
           val extension = name.substringAfterLast('.', "png").ifBlank { "png" }
           val file = File(context.filesDir, "bg_image_${System.currentTimeMillis()}.$extension")
@@ -243,7 +248,7 @@ class SettingsActivity : ComponentActivity() {
               val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
               if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
             }
-            ?: context.getString(R.string.font_custom_fallback)
+            ?: customFontFallback
           val inputStream = context.contentResolver.openInputStream(it)
           val extension = name.substringAfterLast('.', "ttf").ifBlank { "ttf" }
           val file = File(context.filesDir, "custom_font_${System.currentTimeMillis()}.$extension")
@@ -277,6 +282,36 @@ class SettingsActivity : ComponentActivity() {
           .padding(padding)
           .verticalScroll(rememberScrollState()),
       ) {
+        SectionHeader(stringResource(R.string.settings_language))
+        Column {
+          Button(
+            onClick = { showLanguagePicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_language),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = languageLabel(language),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_scroll))
         Column {
           Text(
             text = stringResource(R.string.settings_scroll_speed, scrollSpeed),
@@ -323,35 +358,8 @@ class SettingsActivity : ComponentActivity() {
             }
           }
         }
-        Column {
-          Button(
-            onClick = {
-              sizePositionLauncher.launch(Intent(context, SizePositionActivity::class.java))
-            },
-            shape = RectangleShape,
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.surface,
-              contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-          ) {
-            Column(
-              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-              horizontalAlignment = Alignment.Start,
-            ) {
-              Text(
-                text = stringResource(R.string.settings_change_size_position),
-                style = MaterialTheme.typography.titleMedium,
-              )
-              Text(
-                text = "${logWidth.toInt()} x ${logHeight.toInt()}  ${logPositionX.toInt()}, ${logPositionY.toInt()}  ${logRotation.toInt()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-              )
-            }
-          }
-        }
+
+        SectionHeader(stringResource(R.string.settings_section_font))
         Column {
           Text(
             text = stringResource(R.string.settings_font_size, fontSize),
@@ -421,11 +429,12 @@ class SettingsActivity : ComponentActivity() {
             )
           }
         }
+
+        SectionHeader(stringResource(R.string.settings_section_background))
         Column {
           Button(
             onClick = {
-              draftCommand = logcatCommand
-              showCommandEditor = true
+              sizePositionLauncher.launch(Intent(context, SizePositionActivity::class.java))
             },
             shape = RectangleShape,
             colors = ButtonDefaults.buttonColors(
@@ -440,11 +449,11 @@ class SettingsActivity : ComponentActivity() {
               horizontalAlignment = Alignment.Start,
             ) {
               Text(
-                text = stringResource(R.string.settings_customize_command),
+                text = stringResource(R.string.settings_change_size_position),
                 style = MaterialTheme.typography.titleMedium,
               )
               Text(
-                text = logcatCommand.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND },
+                text = "${logWidth.toInt()} x ${logHeight.toInt()}  ${logPositionX.toInt()}, ${logPositionY.toInt()}  ${logRotation.toInt()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
               )
@@ -452,60 +461,6 @@ class SettingsActivity : ComponentActivity() {
           }
         }
         Column {
-          Button(
-            onClick = { showPermissionPicker = true },
-            shape = RectangleShape,
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.surface,
-              contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-          ) {
-            Column(
-              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-              horizontalAlignment = Alignment.Start,
-            ) {
-              Text(
-                text = stringResource(R.string.settings_permission_method),
-                style = MaterialTheme.typography.titleMedium,
-              )
-              Text(
-                text = permissionLabel(permissionMethod),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-              )
-            }
-          }
-        }
-        Column {
-          Button(
-            onClick = { showLanguagePicker = true },
-            shape = RectangleShape,
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.surface,
-              contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-          ) {
-            Column(
-              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-              horizontalAlignment = Alignment.Start,
-            ) {
-              Text(
-                text = stringResource(R.string.settings_language),
-                style = MaterialTheme.typography.titleMedium,
-              )
-              Text(
-                text = languageLabel(language),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-              )
-            }
-          }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Button(
             onClick = {
               imagePickerLauncher.launch("image/*")
@@ -549,6 +504,8 @@ class SettingsActivity : ComponentActivity() {
               }
             }
           }
+        }
+        Column {
           Button(
             onClick = {
               colorPickerTarget = "background"
@@ -591,14 +548,10 @@ class SettingsActivity : ComponentActivity() {
               ) {}
             }
           }
+        }
 
-          Text(
-            text = stringResource(R.string.settings_log_level_colors),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-          )
-
+        SectionHeader(stringResource(R.string.settings_log_level_colors))
+        Column {
           val logLevels = listOf(
             Triple("verbose", stringResource(R.string.settings_color_verbose), colorVerbose),
             Triple("debug", stringResource(R.string.settings_color_debug), colorDebug),
@@ -651,6 +604,127 @@ class SettingsActivity : ComponentActivity() {
                   modifier = Modifier.size(20.dp),
                 ) {}
               }
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_advanced))
+        Column {
+          Button(
+            onClick = {
+              draftCommand = logcatCommand
+              showCommandEditor = true
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_customize_command),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = logcatCommand.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = { showPermissionPicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_permission),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = permissionLabel(context, permission),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_about))
+        Column {
+          Button(
+            onClick = {
+              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(urlDonate))
+              context.startActivity(intent)
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.menu_donate),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = stringResource(R.string.url_donate),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+              )
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = {
+              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(urlSourceCode))
+              context.startActivity(intent)
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.menu_source_code),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = stringResource(R.string.url_source_code),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+              )
             }
           }
         }
@@ -710,23 +784,23 @@ class SettingsActivity : ComponentActivity() {
     }
     if (showPermissionPicker) {
       PermissionPickerDialog(
-        selectedMethod = permissionMethod,
+        selectedMethod = permission,
         onMethodSelected = { method ->
           showPermissionPicker = false
           if (method == "none") {
-            permissionMethod = method
+            permission = method
             saveSettings()
           } else {
             val grantedNow = PermissionManager.activate(method) { granted ->
               if (granted) {
                 runOnUiThread {
-                  permissionMethod = method
+                  permission = method
                   saveSettings()
                 }
               }
             }
             if (grantedNow) {
-              permissionMethod = method
+              permission = method
               saveSettings()
             }
           }
@@ -757,10 +831,26 @@ class SettingsActivity : ComponentActivity() {
           language = lang
           saveSettings()
           showLanguagePicker = false
-          (context as? ComponentActivity)?.recreate()
+          val intent = Intent(context, SettingsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+          }
+          context.startActivity(intent)
+          (context as? ComponentActivity)?.finish()
+          @Suppress("DEPRECATION")
+          (context as? ComponentActivity)?.overridePendingTransition(0, 0)
         },
         onDismiss = { showLanguagePicker = false },
       )
     }
   }
+}
+
+@Composable
+private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+  Text(
+    text = text,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = modifier.padding(start = 24.dp, top = 20.dp, end = 24.dp, bottom = 8.dp),
+  )
 }

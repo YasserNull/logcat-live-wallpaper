@@ -144,7 +144,7 @@ class MainActivity : ComponentActivity() {
     if (preferredMethod == "none") return
 
     val current = Preferences.getSettings(this)
-    if (current.permissionMethod == preferredMethod) return
+    if (current.permission == preferredMethod) return
 
     val grantedNow =
       PermissionManager.activate(preferredMethod) { granted ->
@@ -152,13 +152,13 @@ class MainActivity : ComponentActivity() {
           runOnUiThread {
             Preferences.saveSettings(
               this,
-              Preferences.getSettings(this).copy(permissionMethod = preferredMethod),
+              Preferences.getSettings(this).copy(permission = preferredMethod),
             )
           }
         }
       }
     if (grantedNow) {
-      Preferences.saveSettings(this, current.copy(permissionMethod = preferredMethod))
+      Preferences.saveSettings(this, current.copy(permission = preferredMethod))
     }
   }
 
@@ -326,7 +326,7 @@ private class LogCatPreviewView(
     key: String?,
   ) {
     renderer.updateSettings(Preferences.getSettings(context))
-    if (key == "permission_method" || key == "logcat_command") {
+    if (key == "permission" || key == "logcat_command") {
       stopLogcatReader()
       renderer.clear()
       startLogcatReader()

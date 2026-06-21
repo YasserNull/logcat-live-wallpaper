@@ -55,7 +55,12 @@ fun imageLabel(
   context.getString(R.string.settings_no_background_image)
 }
 
-fun permissionLabel(permissionMethod: String): String = permissionMethod.replaceFirstChar { it.uppercase() }
+fun permissionLabel(context: Context, permission: String): String = when (permission) {
+  "none" -> context.getString(R.string.permission_none)
+  "shizuku" -> context.getString(R.string.permission_shizuku)
+  "root" -> context.getString(R.string.permission_root)
+  else -> permission.replaceFirstChar { it.uppercase() }
+}
 
 fun languageLabel(language: String): String = when (language) {
   "ar" -> "العربية"
