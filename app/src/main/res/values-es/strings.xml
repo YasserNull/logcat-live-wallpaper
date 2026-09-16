@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">Fondo de pantalla animado LogCat</string>
     <string name="menu_set_wallpaper">Establecer como fondo</string>
+    <string name="set_as_lock_screen">Establecer como pantalla de bloqueo</string>
+    <string name="set_as_home_screen">Establecer como pantalla de inicio</string>
+    <string name="set_as_home_and_lock_screen">Establecer como pantalla de inicio y bloqueo</string>
     <string name="menu_settings">Ajustes</string>
     <string name="menu_source_code">Código fuente</string>
     <string name="action_back">Atrás</string>

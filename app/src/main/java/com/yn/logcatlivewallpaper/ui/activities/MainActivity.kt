@@ -35,6 +35,7 @@ import com.yn.logcatlivewallpaper.core.LogCatRenderer
 import com.yn.logcatlivewallpaper.core.PermissionManager
 import com.yn.logcatlivewallpaper.core.Preferences
 import com.yn.logcatlivewallpaper.service.LogCatWallpaperService
+import com.yn.logcatlivewallpaper.ui.dialogs.WallpaperTargetDialog
 import com.yn.logcatlivewallpaper.ui.theme.LogCatLiveWallpaperTheme
 import com.yn.logcatlivewallpaper.utils.ApplyStatusBarColor
 import java.io.BufferedReader
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
           autoSelectPermissionMethod()
         }
         val statusBarColor = MaterialTheme.colorScheme.surface
+        var showWallpaperDialog by remember { mutableStateOf(false) }
         Box(Modifier.fillMaxSize()) {
           Column(Modifier.fillMaxSize()) {
             Toolbar(
@@ -67,6 +69,7 @@ class MainActivity : ComponentActivity() {
                 @Suppress("DEPRECATION")
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
               },
+              onSetWallpaperClick = { showWallpaperDialog = true },
             )
             AndroidView(
               factory = { ctx -> LogCatPreviewView(ctx) },
@@ -79,6 +82,25 @@ class MainActivity : ComponentActivity() {
               .windowInsetsTopHeight(WindowInsets.statusBars)
               .background(statusBarColor)
               .align(Alignment.TopCenter),
+          )
+        }
+        // Android doesn't let a third-party app choose home/lock for a live wallpaper,
+        // so every option opens the system picker, which shows the final screen choice.
+        if (showWallpaperDialog) {
+          WallpaperTargetDialog(
+            onSetAsLockScreen = {
+              showWallpaperDialog = false
+              setWallpaper()
+            },
+            onSetAsHomeScreen = {
+              showWallpaperDialog = false
+              setWallpaper()
+            },
+            onSetAsHomeAndLockScreen = {
+              showWallpaperDialog = false
+              setWallpaper()
+            },
+            onDismiss = { showWallpaperDialog = false },
           )
         }
       }
@@ -163,7 +185,10 @@ class MainActivity : ComponentActivity() {
   }
 
   @Composable
-  private fun Toolbar(onSettingsClick: () -> Unit) {
+  private fun Toolbar(
+    onSettingsClick: () -> Unit,
+    onSetWallpaperClick: () -> Unit,
+  ) {
     var showMenu by remember { mutableStateOf(false) }
 
     Surface(
@@ -198,7 +223,7 @@ class MainActivity : ComponentActivity() {
               text = { Text(stringResource(R.string.menu_set_wallpaper)) },
               onClick = {
                 showMenu = false
-                setWallpaper()
+                onSetWallpaperClick()
               },
               leadingIcon = { Icon(Icons.Default.Star, null) },
             )

@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">लॉगकैट लाइव वॉलपेपर</string>
     <string name="menu_set_wallpaper">वॉलपेपर के रूप में सेट करें</string>
+    <string name="set_as_lock_screen">लॉक स्क्रीन के रूप में सेट करें</string>
+    <string name="set_as_home_screen">होम स्क्रीन के रूप में सेट करें</string>
+    <string name="set_as_home_and_lock_screen">होम स्क्रीन और लॉक स्क्रीन के रूप में सेट करें</string>
     <string name="menu_settings">सेटिंग्स</string>
     <string name="menu_source_code">सोर्स कोड</string>
     <string name="action_back">वापस</string>

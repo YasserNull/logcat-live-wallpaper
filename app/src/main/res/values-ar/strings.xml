@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">لوج كات خلفية حية</string>
     <string name="menu_set_wallpaper">تعيين كخلفية</string>
+    <string name="set_as_lock_screen">تعيين كشاشة قفل</string>
+    <string name="set_as_home_screen">تعيين كشاشة رئيسية</string>
+    <string name="set_as_home_and_lock_screen">تعيين كشاشة رئيسية وشاشة قفل</string>
     <string name="menu_settings">الإعدادات</string>
     <string name="menu_source_code">الكود المصدري</string>
     <string name="action_back">رجوع</string>

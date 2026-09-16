@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">LogCat ライブ壁紙</string>
     <string name="menu_set_wallpaper">壁紙に設定</string>
+    <string name="set_as_lock_screen">ロック画面に設定</string>
+    <string name="set_as_home_screen">ホーム画面に設定</string>
+    <string name="set_as_home_and_lock_screen">ホーム画面とロック画面の両方に設定</string>
     <string name="menu_settings">設定</string>
     <string name="menu_source_code">ソースコード</string>
     <string name="action_back">戻る</string>

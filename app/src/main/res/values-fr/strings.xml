@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">Fond d\'écran animé LogCat</string>
     <string name="menu_set_wallpaper">Définir comme fond d\'écran</string>
+    <string name="set_as_lock_screen">Définir comme écran de verrouillage</string>
+    <string name="set_as_home_screen">Définir comme écran d\'accueil</string>
+    <string name="set_as_home_and_lock_screen">Définir comme écran d\'accueil et de verrouillage</string>
     <string name="menu_settings">Paramètres</string>
     <string name="menu_source_code">Code source</string>
     <string name="action_back">Retour</string>
