@@ -42,6 +42,7 @@ import com.yn.logcatlivewallpaper.ui.dialogs.PermissionPickerDialog
 import com.yn.logcatlivewallpaper.ui.dialogs.ScrollModeDialog
 import com.yn.logcatlivewallpaper.ui.theme.LogCatLiveWallpaperTheme
 import com.yn.logcatlivewallpaper.utils.ApplyStatusBarColor
+import com.yn.logcatlivewallpaper.utils.ImageUtils
 import com.yn.logcatlivewallpaper.utils.defaultColorForTarget
 import com.yn.logcatlivewallpaper.utils.fontLabel
 import com.yn.logcatlivewallpaper.utils.imageLabel
@@ -222,14 +223,31 @@ class SettingsActivity : ComponentActivity() {
               if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
             }
             ?: noBgImageFallback
-          val inputStream = context.contentResolver.openInputStream(it)
-          val extension = name.substringAfterLast('.', "png").ifBlank { "png" }
-          val file = File(context.filesDir, "bg_image_${System.currentTimeMillis()}.$extension")
-          inputStream?.use { input ->
-            FileOutputStream(file).use { output ->
+          val inputStream = context.contentResolver.openInputStream(it) ?: return@let
+          val tempFile = File(context.filesDir, "bg_image_tmp_${System.currentTimeMillis()}")
+          tempFile.outputStream().use { output ->
+            inputStream.use { input ->
               input.copyTo(output)
             }
           }
+          val mimeType = context.contentResolver.getType(it)
+          val isGif = ImageUtils.isGif(tempFile) ||
+            mimeType?.equals("image/gif", ignoreCase = true) == true ||
+            name.endsWith(".gif", ignoreCase = true)
+          val extension = when {
+            isGif -> "gif"
+            name.contains('.') -> name.substringAfterLast('.', "png").ifBlank { "png" }
+            mimeType?.startsWith("image/") == true -> mimeType.substringAfter("image/")
+            else -> "png"
+          }
+          val file = File(context.filesDir, "bg_image_${System.currentTimeMillis()}.$extension")
+          if (!tempFile.renameTo(file)) {
+            tempFile.copyTo(file, overwrite = true)
+            tempFile.delete()
+          }
+          context.filesDir.listFiles { f ->
+            f.name.startsWith("bg_image_") && f.absolutePath != file.absolutePath
+          }?.forEach { f -> f.delete() }
           backgroundImage = file.absolutePath
           backgroundImageName = name
           saveSettings()
@@ -496,6 +514,7 @@ class SettingsActivity : ComponentActivity() {
                   imageVector = Icons.Default.Clear,
                   contentDescription = stringResource(R.string.action_clear_image),
                   modifier = Modifier.clickable {
+                    runCatching { File(backgroundImage).delete() }
                     backgroundImage = ""
                     backgroundImageName = ""
                     saveSettings()

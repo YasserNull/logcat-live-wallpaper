@@ -5,6 +5,15 @@ package com.yn.logcatlivewallpaper.core
 
 import android.content.Context
 import android.graphics.*
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import com.yn.logcatlivewallpaper.utils.ImageUtils
+import java.io.File
 
 class LogCatRenderer(
   private val context: Context,
@@ -33,8 +42,108 @@ class LogCatRenderer(
   }
   private val bgPaint = Paint()
   private var bgBitmap: Bitmap? = null
+  private var animatedDrawable: Drawable? = null
+
+  @Suppress("DEPRECATION")
+  private var movie: Movie? = null
+  private var movieBitmap: Bitmap? = null
+  private var movieCanvas: Canvas? = null
+  private var mainHandler: Handler? = null
   private var lastBgPath = ""
   private var lastFontPath = ""
+
+  private fun getHandler(): Handler {
+    mainHandler?.let { return it }
+    val looper = Looper.getMainLooper() ?: Looper.myLooper()
+    val handler = if (looper != null) Handler(looper) else Handler(Looper.getMainLooper())
+    mainHandler = handler
+    return handler
+  }
+
+  private val drawableCallback = object : Drawable.Callback {
+    override fun invalidateDrawable(who: Drawable) {}
+
+    override fun scheduleDrawable(who: Drawable, what: Runnable, `when`: Long) {
+      getHandler().postAtTime(what, who, `when`)
+    }
+
+    override fun unscheduleDrawable(who: Drawable, what: Runnable) {
+      getHandler().removeCallbacks(what, who)
+    }
+  }
+
+  private fun loadBackground(path: String) {
+    releaseBackground()
+    lastBgPath = path
+    if (path.isEmpty()) return
+
+    val file = File(path)
+    if (!file.exists()) return
+
+    if (ImageUtils.isGif(file)) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        try {
+          val source = ImageDecoder.createSource(file)
+          val drawable = ImageDecoder.decodeDrawable(source)
+          if (drawable is AnimatedImageDrawable) {
+            drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
+            drawable.callback = drawableCallback
+            if (!isAsleep) {
+              drawable.start()
+            }
+            animatedDrawable = drawable
+            return
+          } else if (drawable is BitmapDrawable) {
+            bgBitmap = drawable.bitmap
+            return
+          } else {
+            animatedDrawable = drawable
+            return
+          }
+        } catch (_: Throwable) {
+          // Fall back to Movie or BitmapFactory
+        }
+      }
+
+      try {
+        @Suppress("DEPRECATION")
+        val m = Movie.decodeFile(path)
+        if (m != null && m.duration() > 0) {
+          movie = m
+          val mW = m.width().coerceAtLeast(1)
+          val mH = m.height().coerceAtLeast(1)
+          val bmp = Bitmap.createBitmap(mW, mH, Bitmap.Config.ARGB_8888)
+          movieBitmap = bmp
+          movieCanvas = Canvas(bmp)
+          return
+        }
+      } catch (_: Throwable) {
+        // Fall back to BitmapFactory
+      }
+    }
+
+    try {
+      bgBitmap = BitmapFactory.decodeFile(path)
+    } catch (_: Throwable) {
+      bgBitmap = null
+    }
+  }
+
+  private fun releaseBackground() {
+    (animatedDrawable as? Animatable)?.stop()
+    animatedDrawable?.callback = null
+    animatedDrawable = null
+
+    movie = null
+    movieBitmap?.recycle()
+    movieBitmap = null
+    movieCanvas = null
+
+    bgBitmap?.recycle()
+    bgBitmap = null
+
+    mainHandler?.removeCallbacksAndMessages(null)
+  }
   private var lineHeight = 0f
   private var scrollOffset = 0f
   private var terminalScrollProgress = 0f
@@ -65,6 +174,9 @@ class LogCatRenderer(
 
   fun updateSettings(newSettings: Preferences.Settings) {
     settings = newSettings
+    if (settings.backgroundImage != lastBgPath) {
+      loadBackground(settings.backgroundImage)
+    }
     if (settings.fontPath != lastFontPath) {
       textPaint.typeface = loadTypeface(settings.fontPath)
       lastFontPath = settings.fontPath
@@ -155,6 +267,8 @@ class LogCatRenderer(
 
   fun onSleep() {
     isAsleep = true
+    (animatedDrawable as? Animatable)?.stop()
+    mainHandler?.removeCallbacksAndMessages(null)
     synchronized(lines) {
       pendingEntries.clear()
       pendingCount.set(0)
@@ -167,6 +281,7 @@ class LogCatRenderer(
   fun onWakeup() {
     isAsleep = false
     resetFrameClock()
+    (animatedDrawable as? Animatable)?.start()
   }
 
   private fun extractPriority(line: String): Char? {
@@ -302,20 +417,70 @@ class LogCatRenderer(
     // Background
     if (settings.backgroundImage.isNotEmpty()) {
       if (settings.backgroundImage != lastBgPath) {
-        bgBitmap = BitmapFactory.decodeFile(settings.backgroundImage)
-        lastBgPath = settings.backgroundImage
+        loadBackground(settings.backgroundImage)
       }
-      bgBitmap?.let { bm ->
-        val scale = maxOf(w / bm.width, h / bm.height)
-        val srcW = (w / scale).toInt()
-        val srcH = (h / scale).toInt()
-        val srcX = (bm.width - srcW) / 2
-        val srcY = (bm.height - srcH) / 2
-        cachedBgSrcRect.set(srcX, srcY, srcX + srcW, srcY + srcH)
-        cachedBgDstRect.set(0, 0, w.toInt(), h.toInt())
-        canvas.drawBitmap(bm, cachedBgSrcRect, cachedBgDstRect, null)
+
+      bgPaint.color = parsedBackgroundColor
+      canvas.drawRect(0f, 0f, w, h, bgPaint)
+
+      val anim = animatedDrawable
+      val mov = movie
+      val bm = bgBitmap
+
+      when {
+        anim != null -> {
+          val dWidth = anim.intrinsicWidth.toFloat()
+          val dHeight = anim.intrinsicHeight.toFloat()
+          if (dWidth > 0f && dHeight > 0f) {
+            val scale = maxOf(w / dWidth, h / dHeight)
+            val scaledW = dWidth * scale
+            val scaledH = dHeight * scale
+            val left = ((w - scaledW) / 2f).toInt()
+            val top = ((h - scaledH) / 2f).toInt()
+            anim.setBounds(left, top, (left + scaledW).toInt(), (top + scaledH).toInt())
+            canvas.save()
+            canvas.clipRect(0f, 0f, w, h)
+            anim.draw(canvas)
+            canvas.restore()
+          } else {
+            anim.setBounds(0, 0, w.toInt(), h.toInt())
+            anim.draw(canvas)
+          }
+        }
+        mov != null && movieBitmap != null && movieCanvas != null -> {
+          val duration = mov.duration().let { if (it <= 0) 1000 else it }
+          val relTime = (System.currentTimeMillis() % duration).toInt()
+          mov.setTime(relTime)
+          val mb = movieBitmap!!
+          val mc = movieCanvas!!
+          mb.eraseColor(Color.TRANSPARENT)
+          mov.draw(mc, 0f, 0f)
+
+          val scale = maxOf(w / mb.width, h / mb.height)
+          val srcW = (w / scale).toInt()
+          val srcH = (h / scale).toInt()
+          val srcX = (mb.width - srcW) / 2
+          val srcY = (mb.height - srcH) / 2
+          cachedBgSrcRect.set(srcX, srcY, srcX + srcW, srcY + srcH)
+          cachedBgDstRect.set(0, 0, w.toInt(), h.toInt())
+          canvas.drawBitmap(mb, cachedBgSrcRect, cachedBgDstRect, null)
+        }
+        bm != null && !bm.isRecycled -> {
+          val scale = maxOf(w / bm.width, h / bm.height)
+          val srcW = (w / scale).toInt()
+          val srcH = (h / scale).toInt()
+          val srcX = (bm.width - srcW) / 2
+          val srcY = (bm.height - srcH) / 2
+          cachedBgSrcRect.set(srcX, srcY, srcX + srcW, srcY + srcH)
+          cachedBgDstRect.set(0, 0, w.toInt(), h.toInt())
+          canvas.drawBitmap(bm, cachedBgSrcRect, cachedBgDstRect, null)
+        }
       }
     } else {
+      if (lastBgPath.isNotEmpty()) {
+        releaseBackground()
+        lastBgPath = ""
+      }
       bgPaint.color = parsedBackgroundColor
       canvas.drawRect(0f, 0f, w, h, bgPaint)
     }
