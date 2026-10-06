@@ -17,13 +17,20 @@ class LogCatRenderer(
     var wrapWidth: Float = -1f
   }
 
-  private val lines = mutableListOf<LineEntry>()
+  private val lines = ArrayDeque<LineEntry>()
   private val maxLines = 50
   private val pendingEntries = java.util.concurrent.ConcurrentLinkedQueue<LineEntry>()
   private val pendingCount = java.util.concurrent.atomic.AtomicInteger(0)
-  private val maxPendingLines = 50
+  private val maxPendingLines = 100
 
-  private val textPaint = Paint().apply { isAntiAlias = false }
+  @Volatile
+  private var isAsleep = false
+  private var wakeupGraceFrames = 0
+
+  private val textPaint = Paint().apply {
+    isAntiAlias = true
+    isSubpixelText = true
+  }
   private val bgPaint = Paint()
   private var bgBitmap: Bitmap? = null
   private var lastBgPath = ""
@@ -32,9 +39,8 @@ class LogCatRenderer(
   private var scrollOffset = 0f
   private var terminalScrollProgress = 0f
   private var lastFrameTimeNanos = 0L
+  private var smoothedSpeedMultiplier = 1.0f
   private var parsedBackgroundColor = Color.BLACK
-
-  private val priorityRegex = Regex("(?:^|\\s)([VDIWEFS])(?:/|\\s)")
 
   private var parsedColorVerbose = Color.BLUE
   private var parsedColorDebug = Color.GREEN
@@ -43,6 +49,13 @@ class LogCatRenderer(
   private var parsedColorError = Color.RED
   private var parsedColorFatal = Color.RED
   private var parsedColorSilent = Color.CYAN
+
+  private val cachedLogArea = RectF()
+  private val cachedBgSrcRect = Rect()
+  private val cachedBgDstRect = Rect()
+  private val cachedFontMetrics = Paint.FontMetrics()
+  private var cachedTopInset = 0f
+  private var cachedBottomInset = 0f
 
   private var settings: Preferences.Settings = Preferences.getSettings(context)
 
@@ -58,6 +71,11 @@ class LogCatRenderer(
     }
     textPaint.textSize = settings.fontSizeSp * context.resources.displayMetrics.density
     lineHeight = textPaint.textSize * 1.25f
+
+    textPaint.getFontMetrics(cachedFontMetrics)
+    val padding = 8f
+    cachedTopInset = padding + maxOf(0f, -cachedFontMetrics.ascent - lineHeight)
+    cachedBottomInset = padding + maxOf(0f, cachedFontMetrics.descent)
 
     parsedBackgroundColor = try {
       Color.parseColor(settings.backgroundColor)
@@ -113,33 +131,75 @@ class LogCatRenderer(
   }
 
   fun enqueueLine(line: String) {
-    val color = lineColor(line)
-    pendingEntries.add(LineEntry(line, color))
+    val sanitized = if (line.length > 1000) line.substring(0, 1000) else line
+    val color = lineColor(sanitized)
+    val entry = LineEntry(sanitized, color)
+
+    if (isAsleep) {
+      synchronized(lines) {
+        while (lines.size >= maxLines) {
+          lines.removeFirst()
+        }
+        lines.add(entry)
+      }
+      return
+    }
+
+    pendingEntries.add(entry)
     if (pendingCount.incrementAndGet() > maxPendingLines) {
-      pendingEntries.poll()
-      pendingCount.decrementAndGet()
+      if (pendingEntries.poll() != null) {
+        pendingCount.decrementAndGet()
+      }
     }
   }
 
-  private fun lineColor(line: String): Int {
-    val priority =
-      priorityRegex
-        .find(line)
-        ?.groupValues
-        ?.getOrNull(1)
-    return when (priority) {
-      "V" -> parsedColorVerbose
-      "D" -> parsedColorDebug
-      "I" -> parsedColorInfo
-      "W" -> parsedColorWarning
-      "E" -> parsedColorError
-      "F" -> parsedColorFatal
-      "S" -> parsedColorSilent
-      else -> parsedColorInfo
+  fun onSleep() {
+    isAsleep = true
+    synchronized(lines) {
+      pendingEntries.clear()
+      pendingCount.set(0)
+      scrollOffset = 0f
+      terminalScrollProgress = 0f
+      lastFrameTimeNanos = 0L
     }
   }
 
-  private fun logArea(
+  fun onWakeup() {
+    isAsleep = false
+    resetFrameClock()
+  }
+
+  private fun extractPriority(line: String): Char? {
+    val len = line.length
+    var i = 0
+    while (i < len) {
+      val c = line[i]
+      if (c == 'V' || c == 'D' || c == 'I' || c == 'W' || c == 'E' || c == 'F' || c == 'S') {
+        val isStart = (i == 0 || line[i - 1].isWhitespace())
+        if (isStart && i + 1 < len) {
+          val next = line[i + 1]
+          if (next == '/' || next.isWhitespace()) {
+            return c
+          }
+        }
+      }
+      i++
+    }
+    return null
+  }
+
+  private fun lineColor(line: String): Int = when (extractPriority(line)) {
+    'V' -> parsedColorVerbose
+    'D' -> parsedColorDebug
+    'I' -> parsedColorInfo
+    'W' -> parsedColorWarning
+    'E' -> parsedColorError
+    'F' -> parsedColorFatal
+    'S' -> parsedColorSilent
+    else -> parsedColorInfo
+  }
+
+  private fun updateLogArea(
     canvasWidth: Float,
     canvasHeight: Float,
   ): RectF {
@@ -160,14 +220,13 @@ class LogCatRenderer(
     val clampedHeight = height.coerceIn(1f, canvasHeight)
     val x = if (clampedWidth == canvasWidth) 0f else settings.logPositionX.coerceIn(0f, canvasWidth - clampedWidth)
     val y =
-      if (clampedHeight ==
-        canvasHeight
-      ) {
+      if (clampedHeight == canvasHeight) {
         0f
       } else {
         settings.logPositionY.coerceIn(0f, canvasHeight - clampedHeight)
       }
-    return RectF(x, y, x + clampedWidth, y + clampedHeight)
+    cachedLogArea.set(x, y, x + clampedWidth, y + clampedHeight)
+    return cachedLogArea
   }
 
   private fun appendNextPendingLine(
@@ -178,11 +237,7 @@ class LogCatRenderer(
     if (lineHeight <= 0f || (!force && scrollOffset < 0f) || pendingEntries.isEmpty()) return
 
     val currentPendingSize = pendingCount.get()
-    val batchSize = when {
-      currentPendingSize > 30 -> 4
-      currentPendingSize > 15 -> 2
-      else -> 1
-    }
+    val batchSize = if (currentPendingSize > 40) 2 else 1
 
     var totalLinesAdded = 0
     var totalHeightAdded = 0f
@@ -197,7 +252,7 @@ class LogCatRenderer(
           1
         }
       while (lines.size >= maxVisibleLines) {
-        lines.removeAt(0)
+        lines.removeFirst()
       }
       lines.add(entry)
       totalLinesAdded++
@@ -230,11 +285,18 @@ class LogCatRenderer(
   fun draw(
     canvas: Canvas,
     frameTimeNanos: Long = System.nanoTime(),
-  ) {
+  ): Boolean {
     val w = canvas.width.toFloat()
     val h = canvas.height.toFloat()
 
-    val deltaTime = if (lastFrameTimeNanos == 0L) 0.016f else (frameTimeNanos - lastFrameTimeNanos) / 1_000_000_000f
+    val targetFrameDuration = 1f / 120f
+    val rawDelta = if (lastFrameTimeNanos == 0L || wakeupGraceFrames > 0) {
+      if (wakeupGraceFrames > 0) wakeupGraceFrames--
+      targetFrameDuration
+    } else {
+      (frameTimeNanos - lastFrameTimeNanos) / 1_000_000_000f
+    }
+    val deltaTime = rawDelta.coerceIn(0.001f, 0.018f)
     lastFrameTimeNanos = frameTimeNanos
 
     // Background
@@ -249,9 +311,9 @@ class LogCatRenderer(
         val srcH = (h / scale).toInt()
         val srcX = (bm.width - srcW) / 2
         val srcY = (bm.height - srcH) / 2
-        val src = Rect(srcX, srcY, srcX + srcW, srcY + srcH)
-        val dst = Rect(0, 0, w.toInt(), h.toInt())
-        canvas.drawBitmap(bm, src, dst, null)
+        cachedBgSrcRect.set(srcX, srcY, srcX + srcW, srcY + srcH)
+        cachedBgDstRect.set(0, 0, w.toInt(), h.toInt())
+        canvas.drawBitmap(bm, cachedBgSrcRect, cachedBgDstRect, null)
       }
     } else {
       bgPaint.color = parsedBackgroundColor
@@ -259,11 +321,10 @@ class LogCatRenderer(
     }
 
     synchronized(lines) {
-      val area = logArea(w, h)
+      val area = updateLogArea(w, h)
       val padding = 8f
-      val fontMetrics = textPaint.fontMetrics
-      val topInset = padding + kotlin.math.max(0f, -fontMetrics.ascent - lineHeight)
-      val bottomInset = padding + kotlin.math.max(0f, fontMetrics.descent)
+      val topInset = cachedTopInset
+      val bottomInset = cachedBottomInset
       val contentWidth = (area.width() - 2 * padding).coerceAtLeast(1f)
       val contentHeight = (area.height() - topInset - bottomInset).coerceAtLeast(lineHeight)
       val maxWidth = contentWidth.coerceAtLeast(100f)
@@ -275,11 +336,21 @@ class LogCatRenderer(
         }
 
       if (settings.scrollMode == Preferences.SCROLL_MODE_SMOOTH) {
-        val currentPendingSize = pendingCount.get()
-        val speedFactor = if (currentPendingSize > 10) (currentPendingSize / 5f).coerceAtMost(5f) else 1f
-        var step = (lineHeight * settings.scrollSpeed * deltaTime * 1.5f * speedFactor).coerceAtLeast(0.1f * deltaTime)
+        val currentPending = pendingCount.get()
+        val targetMultiplier = when {
+          currentPending <= 3 -> 1.0f
+          currentPending <= 20 -> 1.0f + (currentPending - 3) * 0.1f
+          else -> 2.7f + (currentPending - 20) * 0.05f
+        }.coerceIn(1.0f, 4.0f)
 
-        while (step > 0f && (scrollOffset < 0f || pendingEntries.isNotEmpty())) {
+        val lerpFactor = (deltaTime * 8f).coerceIn(0.01f, 1.0f)
+        smoothedSpeedMultiplier += (targetMultiplier - smoothedSpeedMultiplier) * lerpFactor
+
+        var step = (lineHeight * settings.scrollSpeed * deltaTime * 1.5f * smoothedSpeedMultiplier).coerceAtLeast(0.1f * deltaTime)
+
+        var iterations = 0
+        while (step > 0f && (scrollOffset < 0f || pendingEntries.isNotEmpty()) && iterations < 3) {
+          iterations++
           if (scrollOffset < 0f) {
             val remaining = -scrollOffset
             if (step >= remaining) {
@@ -303,13 +374,16 @@ class LogCatRenderer(
           terminalScrollProgress -= lineHeight
           appendNextPendingLine(maxWidth, maxVisibleLines, force = true)
         }
+        if (pendingEntries.isEmpty()) {
+          terminalScrollProgress = 0f
+        }
       }
 
       removeOffscreenLines(area.height())
 
       if (lines.isEmpty()) {
         scrollOffset = 0f
-        return
+        return pendingEntries.isNotEmpty()
       }
 
       canvas.save()
@@ -339,6 +413,8 @@ class LogCatRenderer(
         y -= lineHeight
       }
       canvas.restore()
+
+      return scrollOffset < -0.01f || pendingEntries.isNotEmpty()
     }
   }
 
@@ -349,42 +425,57 @@ class LogCatRenderer(
       val newestToOldestOffset = lines.lastIndex - oldestIndex
       val oldestY = canvasHeight - scrollOffset - newestToOldestOffset * lineHeight
       if (oldestY >= -lineHeight) break
-      lines.removeAt(oldestIndex)
+      lines.removeFirst()
     }
   }
 
   fun resetFrameClock() {
     lastFrameTimeNanos = 0L
+    smoothedSpeedMultiplier = 1.0f
+    wakeupGraceFrames = 5
   }
 
   private fun wrapText(
     text: String,
     maxWidth: Float,
   ): List<String> {
-    val words = text.split(" ")
+    if (text.isEmpty()) return emptyList()
     val result = mutableListOf<String>()
     var currentLine = StringBuilder()
+    var start = 0
+    val len = text.length
 
-    for (word in words) {
+    while (start < len) {
+      var end = text.indexOf(' ', start)
+      if (end == -1) end = len
+      val word = text.substring(start, end)
+      start = end + 1
+
       val testLine = if (currentLine.isEmpty()) word else "$currentLine $word"
       if (textPaint.measureText(testLine) <= maxWidth) {
-        currentLine.append(if (currentLine.isEmpty()) "" else " ").append(word)
+        if (currentLine.isNotEmpty()) currentLine.append(' ')
+        currentLine.append(word)
       } else {
         if (currentLine.isNotEmpty()) {
           result.add(currentLine.toString())
-          currentLine = StringBuilder(word)
+          currentLine = StringBuilder()
+        }
+        if (textPaint.measureText(word) <= maxWidth) {
+          currentLine.append(word)
         } else {
-          var start = 0
-          while (start < word.length) {
-            val count = textPaint.breakText(word, start, word.length, true, maxWidth, null)
+          var charStart = 0
+          while (charStart < word.length) {
+            val count = textPaint.breakText(word, charStart, word.length, true, maxWidth, null)
             if (count <= 0) break
-            result.add(word.substring(start, start + count))
-            start += count
+            result.add(word.substring(charStart, charStart + count))
+            charStart += count
           }
         }
       }
     }
-    if (currentLine.isNotEmpty()) result.add(currentLine.toString())
+    if (currentLine.isNotEmpty()) {
+      result.add(currentLine.toString())
+    }
     return if (result.isEmpty()) listOf(text) else result
   }
 
@@ -395,6 +486,9 @@ class LogCatRenderer(
       pendingCount.set(0)
       scrollOffset = 0f
       terminalScrollProgress = 0f
+      lastFrameTimeNanos = 0L
+      smoothedSpeedMultiplier = 1.0f
+      wakeupGraceFrames = 0
     }
   }
 }

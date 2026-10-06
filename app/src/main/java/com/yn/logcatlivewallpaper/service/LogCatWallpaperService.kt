@@ -3,10 +3,13 @@
 */
 package com.yn.logcatlivewallpaper.service
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
+import android.view.Surface
 import android.view.SurfaceHolder
+import android.view.WindowManager
 import com.yn.logcatlivewallpaper.core.LogCatRenderer
 import com.yn.logcatlivewallpaper.core.PermissionManager
 import com.yn.logcatlivewallpaper.core.Preferences
@@ -22,12 +25,14 @@ class LogCatWallpaperService : WallpaperService() {
     private val renderer = LogCatRenderer(this@LogCatWallpaperService)
     private var logcatHandle: PermissionManager.LogcatHandle? = null
     private var readerThread: Thread? = null
+    private var cachedMaxRefreshRate = 120f
 
     @Volatile
     private var running = false
 
     @Volatile
     private var visible = false
+
     private val frameCallback =
       object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -50,7 +55,9 @@ class LogCatWallpaperService : WallpaperService() {
     override fun onCreate(holder: SurfaceHolder) {
       super.onCreate(holder)
       Preferences.observer(this@LogCatWallpaperService).registerOnSharedPreferenceChangeListener(this)
+      cachedMaxRefreshRate = queryMaxDisplayRefreshRate()
       running = true
+      startLogcatReader()
       if (isVisible) {
         showWallpaper()
       }
@@ -58,11 +65,10 @@ class LogCatWallpaperService : WallpaperService() {
 
     override fun onSurfaceCreated(holder: SurfaceHolder) {
       super.onSurfaceCreated(holder)
-      renderer.updateSettings(Preferences.getSettings(this@LogCatWallpaperService))
+      updateSurfaceFrameRate(holder)
       if (running && isVisible) {
         showWallpaper()
       }
-      updateSurfaceFrameRate(holder)
     }
 
     override fun onDestroy() {
@@ -82,9 +88,7 @@ class LogCatWallpaperService : WallpaperService() {
       if (key == "permission" || key == "logcat_command") {
         stopLogcatReader()
         renderer.clear()
-        if (visible) {
-          startLogcatReader()
-        }
+        startLogcatReader()
       }
     }
 
@@ -95,12 +99,10 @@ class LogCatWallpaperService : WallpaperService() {
       height: Int,
     ) {
       super.onSurfaceChanged(holder, format, width, height)
-      renderer.updateSettings(Preferences.getSettings(this@LogCatWallpaperService))
+      updateSurfaceFrameRate(holder)
       if (isVisible && !visible) {
         showWallpaper()
       }
-      drawFrame(System.nanoTime())
-      updateSurfaceFrameRate(holder)
     }
 
     override fun onVisibilityChanged(v: Boolean) {
@@ -115,15 +117,16 @@ class LogCatWallpaperService : WallpaperService() {
     override fun onSurfaceDestroyed(holder: SurfaceHolder) {
       visible = false
       Choreographer.getInstance().removeFrameCallback(frameCallback)
-      stopLogcatReader()
-      renderer.clear()
       super.onSurfaceDestroyed(holder)
     }
 
     private fun showWallpaper() {
+      if (visible) return
       visible = true
-      renderer.resetFrameClock()
-      startLogcatReader()
+      renderer.onWakeup()
+      if (readerThread?.isAlive != true) {
+        startLogcatReader()
+      }
       Choreographer.getInstance().removeFrameCallback(frameCallback)
       Choreographer.getInstance().postFrameCallback(frameCallback)
     }
@@ -131,8 +134,7 @@ class LogCatWallpaperService : WallpaperService() {
     private fun hideWallpaper() {
       visible = false
       Choreographer.getInstance().removeFrameCallback(frameCallback)
-      stopLogcatReader()
-      renderer.clear()
+      renderer.onSleep()
     }
 
     private fun drawFrame(frameTimeNanos: Long) {
@@ -147,6 +149,7 @@ class LogCatWallpaperService : WallpaperService() {
         } catch (_: Exception) {
           return
         } ?: return
+
       try {
         renderer.draw(canvas, frameTimeNanos)
       } finally {
@@ -158,15 +161,15 @@ class LogCatWallpaperService : WallpaperService() {
     }
 
     private fun startLogcatReader() {
-      if (!running || !visible || readerThread?.isAlive == true) return
+      if (!running || readerThread?.isAlive == true) return
       readerThread =
         Thread {
           try {
             val handle = PermissionManager.startLogcat(this@LogCatWallpaperService) ?: return@Thread
             logcatHandle = handle
-            val reader = BufferedReader(InputStreamReader(handle.inputStream))
+            val reader = BufferedReader(InputStreamReader(handle.inputStream), 8192)
             var line: String? = null
-            while (running && visible && reader.readLine().also { line = it } != null) {
+            while (running && reader.readLine().also { line = it } != null) {
               line?.let { ln ->
                 if (ln.isNotEmpty()) {
                   renderer.enqueueLine(ln)
@@ -174,7 +177,7 @@ class LogCatWallpaperService : WallpaperService() {
               }
             }
           } catch (e: Exception) {
-            if (running && visible) {
+            if (running) {
               renderer.clear()
               renderer.enqueueLine("Logcat error: ${e.message}")
               renderer.enqueueLine("Open app and select Shizuku or Root")
@@ -182,6 +185,7 @@ class LogCatWallpaperService : WallpaperService() {
             }
           }
         }.apply {
+          name = "LogcatReaderThread"
           isDaemon = true
           start()
         }
@@ -194,12 +198,39 @@ class LogCatWallpaperService : WallpaperService() {
       readerThread = null
     }
 
+    @Suppress("DEPRECATION")
+    private fun queryMaxDisplayRefreshRate(): Float = try {
+      val display = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        display ?: (getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.defaultDisplay
+      } else {
+        (getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.defaultDisplay
+      }
+
+      val supported = display?.supportedModes?.map { it.refreshRate } ?: emptyList()
+      val maxMode = supported.maxOrNull() ?: 0f
+      val current = display?.refreshRate ?: 60f
+      maxOf(maxMode, current, 120f)
+    } catch (_: Exception) {
+      120f
+    }
+
     private fun updateSurfaceFrameRate(holder: SurfaceHolder) {
       if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
         try {
           holder.surface?.let { surface ->
             if (surface.isValid) {
-              surface.setFrameRate(120f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                surface.setFrameRate(
+                  cachedMaxRefreshRate,
+                  Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                  Surface.CHANGE_FRAME_RATE_ALWAYS,
+                )
+              } else {
+                surface.setFrameRate(
+                  cachedMaxRefreshRate,
+                  Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                )
+              }
             }
           }
         } catch (_: Exception) {
