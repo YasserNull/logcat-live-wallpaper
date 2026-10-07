@@ -15,8 +15,8 @@ No codegen, lint, or typecheck steps are configured. The project has only placeh
 
 - **Single module**: `:app`
 - **Entrypoints**: `MainActivity.kt` (launcher/settings) + `LogCatWallpaperService.kt` (wallpaper engine)
-- **Theme**: forced dark — dynamic dark (Android 12+) or static purple/pink fallback (`app/src/main/java/com/yn/logcatlivewallpaper/ui/theme/`)
-- **Namespace / applicationId**: `com.yn.logcatlivewallpaper` (namespace in `app/build.gradle.kts`, not in `AndroidManifest.xml`)
+- **Theme**: forced dark — dynamic dark (Android 12+) or static purple/pink fallback (`app/src/main/java/com/yassernull/logcatlivewallpaper/ui/theme/`)
+- **Namespace / applicationId**: `com.yassernull.logcatlivewallpaper` (namespace in `app/build.gradle.kts`, not in `AndroidManifest.xml`)
 - **Wallpaper**: `LogCatWallpaperService` — reads `logcat -v brief *:*` on a background thread, renders scrolling green-on-black text via Canvas at ~20fps
 
 ## Key Config
@@ -45,5 +45,5 @@ Version catalog at `gradle/libs.versions.toml` — always add new deps there.
 ## Implementation Notes
 
 - `Engine.onCreate()` in API 36 takes a `SurfaceHolder` parameter — `override fun onCreate(holder: SurfaceHolder)`.
-- `READ_LOGS` must be granted via ADB on non-rooted devices: `adb shell pm grant com.yn.logcatlivewallpaper android.permission.READ_LOGS`
+- `READ_LOGS` must be granted via ADB on non-rooted devices: `adb shell pm grant com.yassernull.logcatlivewallpaper android.permission.READ_LOGS`
 - MainActivity is a stub — not needed for wallpaper functionality; the wallpaper is set via the system wallpaper picker.

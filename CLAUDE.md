@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LogCat Live Wallpaper is a single-module Android app (`:app`) that renders live `logcat` output as a scrolling, terminal-style live wallpaper. Kotlin + Jetpack Compose for the settings UI; the wallpaper itself is drawn with raw `Canvas` (no Compose). Package/appId `com.yn.logcatlivewallpaper`. minSdk 23 (Android 6.0), target/compileSdk 36 (Android 16), Java 17. Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.2.10 / Compose BOM 2026.02.01.
+LogCat Live Wallpaper is a single-module Android app (`:app`) that renders live `logcat` output as a scrolling, terminal-style live wallpaper. Kotlin + Jetpack Compose for the settings UI; the wallpaper itself is drawn with raw `Canvas` (no Compose). Package/appId `com.yassernull.logcatlivewallpaper`. minSdk 23 (Android 6.0), target/compileSdk 36 (Android 16), Java 17. Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.2.10 / Compose BOM 2026.02.01.
 
 ## Commands
 
@@ -57,7 +57,7 @@ Immutable `Settings` data class persisted as flat SharedPreferences keys under `
 - Version catalog `gradle/libs.versions.toml` — add all new dependencies there, never inline in `build.gradle.kts`.
 - Deps: libsu (`core`/`service`/`nio`) and rikka Shizuku (`api`/`provider`). `ShizukuProvider` is declared in `AndroidManifest.xml` with authority `${applicationId}.shizuku`.
 - On non-rooted devices, full logcat access requires an ADB grant:
-  `adb shell pm grant com.yn.logcatlivewallpaper android.permission.READ_LOGS`
+  `adb shell pm grant com.yassernull.logcatlivewallpaper android.permission.READ_LOGS`
 - CI: `.github/workflows/android.yml` (manual `workflow_dispatch`) runs `./gradlew clean build` on JDK 17.
 - Localization: user-facing strings live in `res/values*` (ar, es, fr, hi, ja, zh). Language switching goes through `utils/LocaleHelper.kt` and activities must be recreated on change (`MainActivity.onResume` compares the saved language).
 - `compileSdk` uses the AGP 9 `release(36) { minorApiLevel = 1 }` DSL; `multiDexEnabled = true`.

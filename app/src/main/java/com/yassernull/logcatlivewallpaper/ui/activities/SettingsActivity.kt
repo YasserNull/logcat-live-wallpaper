@@ -1,0 +1,1000 @@
+/*
+* Shows the full settings screen for wallpaper configuration.
+*/
+package com.yassernull.logcatlivewallpaper.ui.activities
+
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.provider.OpenableColumns
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.yassernull.logcatlivewallpaper.R
+import com.yassernull.logcatlivewallpaper.core.PermissionManager
+import com.yassernull.logcatlivewallpaper.core.Preferences
+import com.yassernull.logcatlivewallpaper.ui.dialogs.ColorPickerDialog
+import com.yassernull.logcatlivewallpaper.ui.dialogs.CommandEditorDialog
+import com.yassernull.logcatlivewallpaper.ui.dialogs.FontPickerDialog
+import com.yassernull.logcatlivewallpaper.ui.dialogs.LanguagePickerDialog
+import com.yassernull.logcatlivewallpaper.ui.dialogs.PermissionPickerDialog
+import com.yassernull.logcatlivewallpaper.ui.dialogs.ScrollModeDialog
+import com.yassernull.logcatlivewallpaper.ui.theme.LogCatLiveWallpaperTheme
+import com.yassernull.logcatlivewallpaper.utils.ApplyStatusBarColor
+import com.yassernull.logcatlivewallpaper.utils.ImageUtils
+import com.yassernull.logcatlivewallpaper.utils.defaultColorForTarget
+import com.yassernull.logcatlivewallpaper.utils.fontLabel
+import com.yassernull.logcatlivewallpaper.utils.imageLabel
+import com.yassernull.logcatlivewallpaper.utils.languageLabel
+import com.yassernull.logcatlivewallpaper.utils.normalizeHex
+import com.yassernull.logcatlivewallpaper.utils.permissionLabel
+import com.yassernull.logcatlivewallpaper.utils.videoLabel
+import java.io.File
+import java.io.FileOutputStream
+
+class SettingsActivity : ComponentActivity() {
+  override fun attachBaseContext(newBase: Context) {
+    super.attachBaseContext(com.yassernull.logcatlivewallpaper.utils.LocaleHelper.wrap(newBase))
+  }
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    setContent {
+      LogCatLiveWallpaperTheme {
+        ApplyStatusBarColor(MaterialTheme.colorScheme.surface)
+        val statusBarColor = MaterialTheme.colorScheme.surface
+        Box(Modifier.fillMaxSize()) {
+          SettingsScreen(onBack = { finish() })
+          Box(
+            Modifier
+              .fillMaxWidth()
+              .windowInsetsTopHeight(WindowInsets.statusBars)
+              .background(statusBarColor)
+              .align(Alignment.TopCenter),
+          )
+        }
+      }
+    }
+  }
+
+  override fun finish() {
+    super.finish()
+    @Suppress("DEPRECATION")
+    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+  }
+
+  @OptIn(ExperimentalMaterial3Api::class)
+  @Composable
+  private fun SettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val noBgImageFallback = stringResource(R.string.settings_no_background_image)
+    val noBgVideoFallback = stringResource(R.string.settings_no_wallpaper_video)
+    val customFontFallback = stringResource(R.string.font_custom_fallback)
+    val urlDonate = stringResource(R.string.url_donate)
+    val urlSourceCode = stringResource(R.string.url_source_code)
+    BackHandler(onBack = onBack)
+    val current = remember { Preferences.getSettings(context) }
+    var scrollSpeed by remember { mutableFloatStateOf(current.scrollSpeed) }
+    var scrollMode by remember { mutableStateOf(current.scrollMode) }
+    var logWidth by remember { mutableFloatStateOf(current.logWidth) }
+    var logHeight by remember { mutableFloatStateOf(current.logHeight) }
+    var logPositionX by remember { mutableFloatStateOf(current.logPositionX) }
+    var logPositionY by remember { mutableFloatStateOf(current.logPositionY) }
+    var logRotation by remember { mutableFloatStateOf(current.logRotation) }
+    var fontSize by remember { mutableIntStateOf(current.fontSizeSp) }
+    var logcatCommand by remember { mutableStateOf(current.logcatCommand) }
+    var permission by remember { mutableStateOf(current.permission) }
+    var backgroundColor by remember { mutableStateOf(current.backgroundColor) }
+    var backgroundImage by remember { mutableStateOf(current.backgroundImage) }
+    var backgroundImageName by remember { mutableStateOf(current.backgroundImageName) }
+    var wallpaperVideo by remember { mutableStateOf(current.wallpaperVideo) }
+    var wallpaperVideoName by remember { mutableStateOf(current.wallpaperVideoName) }
+    var fontPath by remember { mutableStateOf(current.fontPath) }
+    var customFontName by remember { mutableStateOf(current.customFontName) }
+    var wrapWord by remember { mutableStateOf(current.wrapWord) }
+    var colorVerbose by remember { mutableStateOf(current.colorVerbose) }
+    var colorDebug by remember { mutableStateOf(current.colorDebug) }
+    var colorInfo by remember { mutableStateOf(current.colorInfo) }
+    var colorWarning by remember { mutableStateOf(current.colorWarning) }
+    var colorError by remember { mutableStateOf(current.colorError) }
+    var colorFatal by remember { mutableStateOf(current.colorFatal) }
+    var colorSilent by remember { mutableStateOf(current.colorSilent) }
+    var language by remember { mutableStateOf(current.language) }
+
+    var showCommandEditor by remember { mutableStateOf(false) }
+    var draftCommand by remember { mutableStateOf(current.logcatCommand) }
+    var showScrollModePicker by remember { mutableStateOf(false) }
+    var showPermissionPicker by remember { mutableStateOf(false) }
+    var showFontPicker by remember { mutableStateOf(false) }
+    var showColorPicker by remember { mutableStateOf(false) }
+    var showLanguagePicker by remember { mutableStateOf(false) }
+    var colorPickerTarget by remember { mutableStateOf("background") }
+    var draftBackgroundHex by remember { mutableStateOf(current.backgroundColor) }
+    var colorPickerBrightness by remember {
+      val hsv = FloatArray(3)
+      Color.colorToHSV(Color.parseColor(current.backgroundColor), hsv)
+      mutableFloatStateOf(hsv[2])
+    }
+    val sizePositionLauncher = rememberLauncherForActivityResult(
+      ActivityResultContracts.StartActivityForResult(),
+    ) {
+      val latest = Preferences.getSettings(context)
+      logWidth = latest.logWidth
+      logHeight = latest.logHeight
+      logPositionX = latest.logPositionX
+      logPositionY = latest.logPositionY
+      logRotation = latest.logRotation
+    }
+
+    fun saveSettings() {
+      val latestSettings = Preferences.getSettings(context)
+      val s = Preferences.Settings(
+        scrollSpeed,
+        scrollMode,
+        latestSettings.logWidth,
+        latestSettings.logHeight,
+        latestSettings.logPositionX,
+        latestSettings.logPositionY,
+        latestSettings.logRotation,
+        fontSize,
+        logcatCommand,
+        permission,
+        backgroundColor,
+        backgroundImage,
+        backgroundImageName,
+        fontPath,
+        customFontName,
+        wrapWord,
+        colorVerbose,
+        colorDebug,
+        colorInfo,
+        colorWarning,
+        colorError,
+        colorFatal,
+        colorSilent,
+        language,
+        wallpaperVideo,
+        wallpaperVideoName,
+      )
+      Preferences.saveSettings(context, s)
+    }
+
+    fun getTargetColor(): String = when (colorPickerTarget) {
+      "verbose" -> colorVerbose
+      "debug" -> colorDebug
+      "info" -> colorInfo
+      "warning" -> colorWarning
+      "error" -> colorError
+      "fatal" -> colorFatal
+      "silent" -> colorSilent
+      else -> backgroundColor
+    }
+
+    fun setTargetColor(hex: String, updateDraft: Boolean = true) {
+      when (colorPickerTarget) {
+        "verbose" -> colorVerbose = hex
+        "debug" -> colorDebug = hex
+        "info" -> colorInfo = hex
+        "warning" -> colorWarning = hex
+        "error" -> colorError = hex
+        "fatal" -> colorFatal = hex
+        "silent" -> colorSilent = hex
+        else -> backgroundColor = hex
+      }
+      if (updateDraft) {
+        draftBackgroundHex = hex
+      }
+      saveSettings()
+    }
+
+    fun updateTargetBrightness(value: Float) {
+      val hsv = FloatArray(3)
+      Color.colorToHSV(Color.parseColor(getTargetColor()), hsv)
+      hsv[2] = value
+      val hex = "#%08X".format(Color.HSVToColor(hsv))
+      setTargetColor(hex)
+      colorPickerBrightness = value
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+      ActivityResultContracts.GetContent(),
+    ) { uri ->
+      uri?.let {
+        try {
+          val name = context.contentResolver
+            .query(it, null, null, null, null)
+            ?.use { cursor ->
+              val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+            }
+            ?: noBgImageFallback
+          val inputStream = context.contentResolver.openInputStream(it) ?: return@let
+          val tempFile = File(context.filesDir, "bg_image_tmp_${System.currentTimeMillis()}")
+          tempFile.outputStream().use { output ->
+            inputStream.use { input ->
+              input.copyTo(output)
+            }
+          }
+          val mimeType = context.contentResolver.getType(it)
+          val isGif = ImageUtils.isGif(tempFile) ||
+            mimeType?.equals("image/gif", ignoreCase = true) == true ||
+            name.endsWith(".gif", ignoreCase = true)
+          val extension = when {
+            isGif -> "gif"
+            name.contains('.') -> name.substringAfterLast('.', "png").ifBlank { "png" }
+            mimeType?.startsWith("image/") == true -> mimeType.substringAfter("image/")
+            else -> "png"
+          }
+          val file = File(context.filesDir, "bg_image_${System.currentTimeMillis()}.$extension")
+          if (!tempFile.renameTo(file)) {
+            tempFile.copyTo(file, overwrite = true)
+            tempFile.delete()
+          }
+          context.filesDir.listFiles { f ->
+            f.name.startsWith("bg_image_") && f.absolutePath != file.absolutePath
+          }?.forEach { f -> f.delete() }
+
+          if (wallpaperVideo.isNotEmpty()) {
+            runCatching { File(wallpaperVideo).delete() }
+            wallpaperVideo = ""
+            wallpaperVideoName = ""
+          }
+
+          backgroundImage = file.absolutePath
+          backgroundImageName = name
+          saveSettings()
+        } catch (_: Exception) {}
+      }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+      ActivityResultContracts.GetContent(),
+    ) { uri ->
+      uri?.let {
+        try {
+          val name = context.contentResolver
+            .query(it, null, null, null, null)
+            ?.use { cursor ->
+              val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+            }
+            ?: noBgVideoFallback
+          val inputStream = context.contentResolver.openInputStream(it) ?: return@let
+          val tempFile = File(context.filesDir, "bg_video_tmp_${System.currentTimeMillis()}")
+          tempFile.outputStream().use { output ->
+            inputStream.use { input ->
+              input.copyTo(output)
+            }
+          }
+          if (!tempFile.exists() || tempFile.length() == 0L) {
+            tempFile.delete()
+            return@let
+          }
+          val mimeType = context.contentResolver.getType(it)
+          val extension = when {
+            name.contains('.') -> name.substringAfterLast('.', "mp4").ifBlank { "mp4" }
+            mimeType?.startsWith("video/") == true -> mimeType.substringAfter("video/")
+            else -> "mp4"
+          }
+          val file = File(context.filesDir, "bg_video_${System.currentTimeMillis()}.$extension")
+          if (!tempFile.renameTo(file)) {
+            tempFile.copyTo(file, overwrite = true)
+            tempFile.delete()
+          }
+          context.filesDir.listFiles { f ->
+            f.name.startsWith("bg_video_") && f.absolutePath != file.absolutePath
+          }?.forEach { f -> f.delete() }
+
+          if (backgroundImage.isNotEmpty()) {
+            runCatching { File(backgroundImage).delete() }
+            backgroundImage = ""
+            backgroundImageName = ""
+          }
+
+          wallpaperVideo = file.absolutePath
+          wallpaperVideoName = name
+          saveSettings()
+        } catch (_: Exception) {}
+      }
+    }
+
+    val fontPickerLauncher = rememberLauncherForActivityResult(
+      ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+      uri?.let {
+        try {
+          val name = context.contentResolver
+            .query(it, null, null, null, null)
+            ?.use { cursor ->
+              val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+            }
+            ?: customFontFallback
+          val inputStream = context.contentResolver.openInputStream(it)
+          val extension = name.substringAfterLast('.', "ttf").ifBlank { "ttf" }
+          val file = File(context.filesDir, "custom_font_${System.currentTimeMillis()}.$extension")
+          inputStream?.use { input ->
+            FileOutputStream(file).use { output ->
+              input.copyTo(output)
+            }
+          }
+          fontPath = file.absolutePath
+          customFontName = name
+          saveSettings()
+        } catch (_: Exception) {}
+      }
+    }
+
+    Scaffold(
+      topBar = {
+        CenterAlignedTopAppBar(
+          title = { Text(stringResource(R.string.menu_settings)) },
+          navigationIcon = {
+            IconButton(onClick = onBack) {
+              Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
+            }
+          },
+        )
+      },
+    ) { padding ->
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(padding)
+          .verticalScroll(rememberScrollState()),
+      ) {
+        SectionHeader(stringResource(R.string.settings_language))
+        Column {
+          Button(
+            onClick = { showLanguagePicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_language),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = languageLabel(language),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_scroll))
+        Column {
+          Text(
+            text = stringResource(R.string.settings_scroll_speed, scrollSpeed),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+          )
+          Slider(
+            value = scrollSpeed,
+            onValueChange = {
+              scrollSpeed = it
+              saveSettings()
+            },
+            valueRange = 0.5f..50.0f,
+            modifier = Modifier.padding(horizontal = 24.dp),
+          )
+        }
+        Column {
+          Button(
+            onClick = { showScrollModePicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_scroll_mode),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = when (scrollMode) {
+                  Preferences.SCROLL_MODE_TERMINAL -> stringResource(R.string.scroll_mode_terminal)
+                  else -> stringResource(R.string.scroll_mode_smooth)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_font))
+        Column {
+          Text(
+            text = stringResource(R.string.settings_font_size, fontSize),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+          )
+          Slider(
+            value = fontSize.toFloat(),
+            onValueChange = {
+              fontSize = it.toInt()
+              saveSettings()
+            },
+            valueRange = 8f..32f,
+            modifier = Modifier.padding(horizontal = 24.dp),
+          )
+        }
+        Column {
+          Button(
+            onClick = { showFontPicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_change_font),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = fontLabel(context, fontPath, customFontName),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+        Column {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .heightIn(min = 64.dp)
+              .clickable {
+                wrapWord = !wrapWord
+                saveSettings()
+              }
+              .padding(horizontal = 24.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+          ) {
+            Text(
+              text = stringResource(R.string.settings_wrap_word),
+              style = MaterialTheme.typography.titleMedium,
+            )
+            Switch(
+              checked = wrapWord,
+              onCheckedChange = {
+                wrapWord = it
+                saveSettings()
+              },
+            )
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_background))
+        Column {
+          Button(
+            onClick = {
+              sizePositionLauncher.launch(Intent(context, SizePositionActivity::class.java))
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_change_size_position),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = "${logWidth.toInt()} x ${logHeight.toInt()}  ${logPositionX.toInt()}, ${logPositionY.toInt()}  ${logRotation.toInt()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+        val isVideoSelected = wallpaperVideo.isNotEmpty()
+        val isImageSelected = backgroundImage.isNotEmpty()
+        val disabledBgColor = androidx.compose.ui.graphics.Color(0xFF262626)
+        val disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+
+        Column {
+          Button(
+            onClick = {
+              if (!isVideoSelected) {
+                imagePickerLauncher.launch("image/*")
+              }
+            },
+            enabled = !isVideoSelected,
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = if (isVideoSelected) disabledBgColor else MaterialTheme.colorScheme.surface,
+              contentColor = if (isVideoSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface,
+              disabledContainerColor = disabledBgColor,
+              disabledContentColor = disabledTextColor,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+              ) {
+                Text(
+                  text = stringResource(R.string.settings_change_background_image),
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  text = imageLabel(context, backgroundImage, backgroundImageName),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = if (isVideoSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+              }
+              if (backgroundImage.isNotEmpty()) {
+                Icon(
+                  imageVector = Icons.Default.Clear,
+                  contentDescription = stringResource(R.string.action_clear_image),
+                  modifier = Modifier.clickable {
+                    runCatching { File(backgroundImage).delete() }
+                    backgroundImage = ""
+                    backgroundImageName = ""
+                    saveSettings()
+                  },
+                )
+              }
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = {
+              if (!isImageSelected) {
+                videoPickerLauncher.launch("video/*")
+              }
+            },
+            enabled = !isImageSelected,
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = if (isImageSelected) disabledBgColor else MaterialTheme.colorScheme.surface,
+              contentColor = if (isImageSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface,
+              disabledContainerColor = disabledBgColor,
+              disabledContentColor = disabledTextColor,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+              ) {
+                Text(
+                  text = stringResource(R.string.settings_wallpaper_video),
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  text = videoLabel(context, wallpaperVideo, wallpaperVideoName),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = if (isImageSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+              }
+              if (wallpaperVideo.isNotEmpty()) {
+                Icon(
+                  imageVector = Icons.Default.Clear,
+                  contentDescription = stringResource(R.string.action_clear_video),
+                  modifier = Modifier.clickable {
+                    runCatching { File(wallpaperVideo).delete() }
+                    wallpaperVideo = ""
+                    wallpaperVideoName = ""
+                    saveSettings()
+                  },
+                )
+              }
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = {
+              colorPickerTarget = "background"
+              val hsv = FloatArray(3)
+              Color.colorToHSV(Color.parseColor(backgroundColor), hsv)
+              colorPickerBrightness = hsv[2]
+              draftBackgroundHex = backgroundColor
+              showColorPicker = true
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+              ) {
+                Text(
+                  text = stringResource(R.string.settings_change_background_color),
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  text = backgroundColor,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+              }
+              Surface(
+                color = androidx.compose.ui.graphics.Color(Color.parseColor(backgroundColor)),
+                shape = CircleShape,
+                modifier = Modifier.size(20.dp),
+              ) {}
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_log_level_colors))
+        Column {
+          val logLevels = listOf(
+            Triple("verbose", stringResource(R.string.settings_color_verbose), colorVerbose),
+            Triple("debug", stringResource(R.string.settings_color_debug), colorDebug),
+            Triple("info", stringResource(R.string.settings_color_info), colorInfo),
+            Triple("warning", stringResource(R.string.settings_color_warning), colorWarning),
+            Triple("error", stringResource(R.string.settings_color_error), colorError),
+            Triple("fatal", stringResource(R.string.settings_color_fatal), colorFatal),
+            Triple("silent", stringResource(R.string.settings_color_silent), colorSilent),
+          )
+
+          logLevels.forEach { (target, label, color) ->
+            Button(
+              onClick = {
+                colorPickerTarget = target
+                val hsv = FloatArray(3)
+                Color.colorToHSV(Color.parseColor(color), hsv)
+                colorPickerBrightness = hsv[2]
+                draftBackgroundHex = color
+                showColorPicker = true
+              },
+              shape = RectangleShape,
+              colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+              ),
+              contentPadding = PaddingValues(0.dp),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(
+                  modifier = Modifier.weight(1f),
+                  horizontalAlignment = Alignment.Start,
+                ) {
+                  Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                  )
+                  Text(
+                    text = color,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                  )
+                }
+                Surface(
+                  color = androidx.compose.ui.graphics.Color(Color.parseColor(color)),
+                  shape = CircleShape,
+                  modifier = Modifier.size(20.dp),
+                ) {}
+              }
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_advanced))
+        Column {
+          Button(
+            onClick = {
+              draftCommand = logcatCommand
+              showCommandEditor = true
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_customize_command),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = logcatCommand.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = { showPermissionPicker = true },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.settings_permission),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = permissionLabel(context, permission),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              )
+            }
+          }
+        }
+
+        SectionHeader(stringResource(R.string.settings_section_about))
+        Column {
+          Button(
+            onClick = {
+              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(urlDonate))
+              context.startActivity(intent)
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.menu_donate),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = stringResource(R.string.url_donate),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+              )
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = {
+              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(urlSourceCode))
+              context.startActivity(intent)
+            },
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.surface,
+              contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              horizontalAlignment = Alignment.Start,
+            ) {
+              Text(
+                text = stringResource(R.string.menu_source_code),
+                style = MaterialTheme.typography.titleMedium,
+              )
+              Text(
+                text = stringResource(R.string.url_source_code),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+              )
+            }
+          }
+        }
+      }
+    }
+
+    if (showColorPicker) {
+      ColorPickerDialog(
+        target = colorPickerTarget,
+        targetColor = getTargetColor(),
+        draftHex = draftBackgroundHex,
+        brightness = colorPickerBrightness,
+        onDismiss = { showColorPicker = false },
+        onDraftHexChanged = { value ->
+          draftBackgroundHex = value
+          normalizeHex(value)?.let { hex ->
+            setTargetColor(hex, updateDraft = false)
+            val hsv = FloatArray(3)
+            Color.colorToHSV(Color.parseColor(hex), hsv)
+            colorPickerBrightness = hsv[2]
+          }
+        },
+        onColorChanged = { hex, updateDraft -> setTargetColor(hex, updateDraft) },
+        onBrightnessChanged = { updateTargetBrightness(it) },
+        onReset = {
+          val defaultHex = defaultColorForTarget(colorPickerTarget)
+          setTargetColor(defaultHex)
+          val hsv = FloatArray(3)
+          Color.colorToHSV(Color.parseColor(defaultHex), hsv)
+          colorPickerBrightness = hsv[2]
+        },
+      )
+    }
+    if (showCommandEditor) {
+      CommandEditorDialog(
+        command = draftCommand,
+        onCommandChanged = { draftCommand = it },
+        onReset = { draftCommand = Preferences.DEFAULT_LOGCAT_COMMAND },
+        onSave = {
+          logcatCommand = draftCommand.ifBlank { Preferences.DEFAULT_LOGCAT_COMMAND }
+          saveSettings()
+          showCommandEditor = false
+        },
+        onDismiss = { showCommandEditor = false },
+      )
+    }
+    if (showScrollModePicker) {
+      ScrollModeDialog(
+        selectedMode = scrollMode,
+        onModeSelected = { mode ->
+          scrollMode = mode
+          saveSettings()
+          showScrollModePicker = false
+        },
+        onDismiss = { showScrollModePicker = false },
+      )
+    }
+    if (showPermissionPicker) {
+      PermissionPickerDialog(
+        selectedMethod = permission,
+        onMethodSelected = { method ->
+          showPermissionPicker = false
+          if (method == "none") {
+            permission = method
+            saveSettings()
+          } else {
+            val grantedNow = PermissionManager.activate(method) { granted ->
+              if (granted) {
+                runOnUiThread {
+                  permission = method
+                  saveSettings()
+                }
+              }
+            }
+            if (grantedNow) {
+              permission = method
+              saveSettings()
+            }
+          }
+        },
+        onDismiss = { showPermissionPicker = false },
+      )
+    }
+    if (showFontPicker) {
+      FontPickerDialog(
+        selectedFontPath = fontPath,
+        onBuiltInFontSelected = { path ->
+          fontPath = path
+          customFontName = ""
+          saveSettings()
+          showFontPicker = false
+        },
+        onCustomFontSelected = {
+          showFontPicker = false
+          fontPickerLauncher.launch(arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-opentype", "*/*"))
+        },
+        onDismiss = { showFontPicker = false },
+      )
+    }
+    if (showLanguagePicker) {
+      LanguagePickerDialog(
+        selectedLanguage = language,
+        onLanguageSelected = { lang ->
+          language = lang
+          saveSettings()
+          showLanguagePicker = false
+          val intent = Intent(context, SettingsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+          }
+          context.startActivity(intent)
+          (context as? ComponentActivity)?.finish()
+          @Suppress("DEPRECATION")
+          (context as? ComponentActivity)?.overridePendingTransition(0, 0)
+        },
+        onDismiss = { showLanguagePicker = false },
+      )
+    }
+  }
+}
+
+@Composable
+private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+  Text(
+    text = text,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = modifier.padding(start = 24.dp, top = 20.dp, end = 24.dp, bottom = 8.dp),
+  )
+}
