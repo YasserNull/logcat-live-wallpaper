@@ -49,6 +49,7 @@ import com.yn.logcatlivewallpaper.utils.imageLabel
 import com.yn.logcatlivewallpaper.utils.languageLabel
 import com.yn.logcatlivewallpaper.utils.normalizeHex
 import com.yn.logcatlivewallpaper.utils.permissionLabel
+import com.yn.logcatlivewallpaper.utils.videoLabel
 import java.io.File
 import java.io.FileOutputStream
 
@@ -88,6 +89,7 @@ class SettingsActivity : ComponentActivity() {
   private fun SettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val noBgImageFallback = stringResource(R.string.settings_no_background_image)
+    val noBgVideoFallback = stringResource(R.string.settings_no_wallpaper_video)
     val customFontFallback = stringResource(R.string.font_custom_fallback)
     val urlDonate = stringResource(R.string.url_donate)
     val urlSourceCode = stringResource(R.string.url_source_code)
@@ -106,6 +108,8 @@ class SettingsActivity : ComponentActivity() {
     var backgroundColor by remember { mutableStateOf(current.backgroundColor) }
     var backgroundImage by remember { mutableStateOf(current.backgroundImage) }
     var backgroundImageName by remember { mutableStateOf(current.backgroundImageName) }
+    var wallpaperVideo by remember { mutableStateOf(current.wallpaperVideo) }
+    var wallpaperVideoName by remember { mutableStateOf(current.wallpaperVideoName) }
     var fontPath by remember { mutableStateOf(current.fontPath) }
     var customFontName by remember { mutableStateOf(current.customFontName) }
     var wrapWord by remember { mutableStateOf(current.wrapWord) }
@@ -170,6 +174,8 @@ class SettingsActivity : ComponentActivity() {
         colorFatal,
         colorSilent,
         language,
+        wallpaperVideo,
+        wallpaperVideoName,
       )
       Preferences.saveSettings(context, s)
     }
@@ -248,8 +254,66 @@ class SettingsActivity : ComponentActivity() {
           context.filesDir.listFiles { f ->
             f.name.startsWith("bg_image_") && f.absolutePath != file.absolutePath
           }?.forEach { f -> f.delete() }
+
+          if (wallpaperVideo.isNotEmpty()) {
+            runCatching { File(wallpaperVideo).delete() }
+            wallpaperVideo = ""
+            wallpaperVideoName = ""
+          }
+
           backgroundImage = file.absolutePath
           backgroundImageName = name
+          saveSettings()
+        } catch (_: Exception) {}
+      }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+      ActivityResultContracts.GetContent(),
+    ) { uri ->
+      uri?.let {
+        try {
+          val name = context.contentResolver
+            .query(it, null, null, null, null)
+            ?.use { cursor ->
+              val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+            }
+            ?: noBgVideoFallback
+          val inputStream = context.contentResolver.openInputStream(it) ?: return@let
+          val tempFile = File(context.filesDir, "bg_video_tmp_${System.currentTimeMillis()}")
+          tempFile.outputStream().use { output ->
+            inputStream.use { input ->
+              input.copyTo(output)
+            }
+          }
+          if (!tempFile.exists() || tempFile.length() == 0L) {
+            tempFile.delete()
+            return@let
+          }
+          val mimeType = context.contentResolver.getType(it)
+          val extension = when {
+            name.contains('.') -> name.substringAfterLast('.', "mp4").ifBlank { "mp4" }
+            mimeType?.startsWith("video/") == true -> mimeType.substringAfter("video/")
+            else -> "mp4"
+          }
+          val file = File(context.filesDir, "bg_video_${System.currentTimeMillis()}.$extension")
+          if (!tempFile.renameTo(file)) {
+            tempFile.copyTo(file, overwrite = true)
+            tempFile.delete()
+          }
+          context.filesDir.listFiles { f ->
+            f.name.startsWith("bg_video_") && f.absolutePath != file.absolutePath
+          }?.forEach { f -> f.delete() }
+
+          if (backgroundImage.isNotEmpty()) {
+            runCatching { File(backgroundImage).delete() }
+            backgroundImage = ""
+            backgroundImageName = ""
+          }
+
+          wallpaperVideo = file.absolutePath
+          wallpaperVideoName = name
           saveSettings()
         } catch (_: Exception) {}
       }
@@ -478,15 +542,25 @@ class SettingsActivity : ComponentActivity() {
             }
           }
         }
+        val isVideoSelected = wallpaperVideo.isNotEmpty()
+        val isImageSelected = backgroundImage.isNotEmpty()
+        val disabledBgColor = androidx.compose.ui.graphics.Color(0xFF262626)
+        val disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+
         Column {
           Button(
             onClick = {
-              imagePickerLauncher.launch("image/*")
+              if (!isVideoSelected) {
+                imagePickerLauncher.launch("image/*")
+              }
             },
+            enabled = !isVideoSelected,
             shape = RectangleShape,
             colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.surface,
-              contentColor = MaterialTheme.colorScheme.onSurface,
+              containerColor = if (isVideoSelected) disabledBgColor else MaterialTheme.colorScheme.surface,
+              contentColor = if (isVideoSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface,
+              disabledContainerColor = disabledBgColor,
+              disabledContentColor = disabledTextColor,
             ),
             contentPadding = PaddingValues(0.dp),
             modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
@@ -506,7 +580,7 @@ class SettingsActivity : ComponentActivity() {
                 Text(
                   text = imageLabel(context, backgroundImage, backgroundImageName),
                   style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                  color = if (isVideoSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
               }
               if (backgroundImage.isNotEmpty()) {
@@ -517,6 +591,57 @@ class SettingsActivity : ComponentActivity() {
                     runCatching { File(backgroundImage).delete() }
                     backgroundImage = ""
                     backgroundImageName = ""
+                    saveSettings()
+                  },
+                )
+              }
+            }
+          }
+        }
+        Column {
+          Button(
+            onClick = {
+              if (!isImageSelected) {
+                videoPickerLauncher.launch("video/*")
+              }
+            },
+            enabled = !isImageSelected,
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(
+              containerColor = if (isImageSelected) disabledBgColor else MaterialTheme.colorScheme.surface,
+              contentColor = if (isImageSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface,
+              disabledContainerColor = disabledBgColor,
+              disabledContentColor = disabledTextColor,
+            ),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+              ) {
+                Text(
+                  text = stringResource(R.string.settings_wallpaper_video),
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  text = videoLabel(context, wallpaperVideo, wallpaperVideoName),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = if (isImageSelected) disabledTextColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+              }
+              if (wallpaperVideo.isNotEmpty()) {
+                Icon(
+                  imageVector = Icons.Default.Clear,
+                  contentDescription = stringResource(R.string.action_clear_video),
+                  modifier = Modifier.clickable {
+                    runCatching { File(wallpaperVideo).delete() }
+                    wallpaperVideo = ""
+                    wallpaperVideoName = ""
                     saveSettings()
                   },
                 )

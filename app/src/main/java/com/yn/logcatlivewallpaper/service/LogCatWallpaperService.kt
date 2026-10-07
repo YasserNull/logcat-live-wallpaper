@@ -1,6 +1,6 @@
 /*
-* Runs the live wallpaper engine and logcat reader.
-*/
+ * Runs the live wallpaper engine and logcat reader.
+ */
 package com.yn.logcatlivewallpaper.service
 
 import android.content.Context
@@ -22,10 +22,14 @@ class LogCatWallpaperService : WallpaperService() {
   inner class LogCatEngine :
     Engine(),
     SharedPreferences.OnSharedPreferenceChangeListener {
+    private val tag = "LogCatWallpaperService"
     private val renderer = LogCatRenderer(this@LogCatWallpaperService)
     private var logcatHandle: PermissionManager.LogcatHandle? = null
     private var readerThread: Thread? = null
     private var cachedMaxRefreshRate = 120f
+    private var videoOverlayRenderer: VideoOverlayRenderer? = null
+    private var currentSurfaceWidth = 0
+    private var currentSurfaceHeight = 0
 
     @Volatile
     private var running = false
@@ -41,7 +45,12 @@ class LogCatWallpaperService : WallpaperService() {
               if (readerThread?.isAlive != true) {
                 startLogcatReader()
               }
-              drawFrame(frameTimeNanos)
+              val settings = Preferences.getSettings(this@LogCatWallpaperService)
+              if (settings.wallpaperVideo.isNotEmpty()) {
+                videoOverlayRenderer?.drawFrame(frameTimeNanos)
+              } else {
+                drawCanvasFrame(frameTimeNanos)
+              }
             } catch (_: Exception) {
             } finally {
               if (running && visible) {
@@ -66,6 +75,8 @@ class LogCatWallpaperService : WallpaperService() {
     override fun onSurfaceCreated(holder: SurfaceHolder) {
       super.onSurfaceCreated(holder)
       updateSurfaceFrameRate(holder)
+      val settings = Preferences.getSettings(this@LogCatWallpaperService)
+      setupRendererForMode(settings.wallpaperVideo)
       if (running && isVisible) {
         showWallpaper()
       }
@@ -75,6 +86,7 @@ class LogCatWallpaperService : WallpaperService() {
       running = false
       Preferences.observer(this@LogCatWallpaperService).unregisterOnSharedPreferenceChangeListener(this)
       Choreographer.getInstance().removeFrameCallback(frameCallback)
+      releaseVideoRenderer()
       stopLogcatReader()
       renderer.clear()
       super.onDestroy()
@@ -84,7 +96,15 @@ class LogCatWallpaperService : WallpaperService() {
       sharedPreferences: SharedPreferences?,
       key: String?,
     ) {
-      renderer.updateSettings(Preferences.getSettings(this@LogCatWallpaperService))
+      val settings = Preferences.getSettings(this@LogCatWallpaperService)
+      renderer.updateSettings(settings)
+      if (key == "wallpaper_video") {
+        setupRendererForMode(settings.wallpaperVideo)
+        if (visible && running) {
+          videoOverlayRenderer?.resumeVideo()
+        }
+        return
+      }
       if (key == "permission" || key == "logcat_command") {
         stopLogcatReader()
         renderer.clear()
@@ -99,7 +119,10 @@ class LogCatWallpaperService : WallpaperService() {
       height: Int,
     ) {
       super.onSurfaceChanged(holder, format, width, height)
+      currentSurfaceWidth = width
+      currentSurfaceHeight = height
       updateSurfaceFrameRate(holder)
+      videoOverlayRenderer?.updateSurfaceDimensions(width, height)
       if (isVisible && !visible) {
         showWallpaper()
       }
@@ -117,7 +140,33 @@ class LogCatWallpaperService : WallpaperService() {
     override fun onSurfaceDestroyed(holder: SurfaceHolder) {
       visible = false
       Choreographer.getInstance().removeFrameCallback(frameCallback)
+      releaseVideoRenderer()
       super.onSurfaceDestroyed(holder)
+    }
+
+    private fun setupRendererForMode(videoPath: String) {
+      val holder = surfaceHolder
+      if (videoPath.isNotEmpty()) {
+        if (holder != null && holder.surface.isValid) {
+          val vor = videoOverlayRenderer
+          if (vor == null) {
+            val w = if (currentSurfaceWidth > 0) currentSurfaceWidth else holder.surfaceFrame.width().coerceAtLeast(1)
+            val h = if (currentSurfaceHeight > 0) currentSurfaceHeight else holder.surfaceFrame.height().coerceAtLeast(1)
+            val newRenderer = VideoOverlayRenderer(holder.surface, w, h, renderer)
+            videoOverlayRenderer = newRenderer
+            newRenderer.startVideo(videoPath, visible && running)
+          } else {
+            vor.startVideo(videoPath, visible && running)
+          }
+        }
+      } else {
+        releaseVideoRenderer()
+      }
+    }
+
+    private fun releaseVideoRenderer() {
+      videoOverlayRenderer?.release()
+      videoOverlayRenderer = null
     }
 
     private fun showWallpaper() {
@@ -127,6 +176,14 @@ class LogCatWallpaperService : WallpaperService() {
       if (readerThread?.isAlive != true) {
         startLogcatReader()
       }
+      val settings = Preferences.getSettings(this@LogCatWallpaperService)
+      if (settings.wallpaperVideo.isNotEmpty()) {
+        if (videoOverlayRenderer == null) {
+          setupRendererForMode(settings.wallpaperVideo)
+        } else {
+          videoOverlayRenderer?.resumeVideo()
+        }
+      }
       Choreographer.getInstance().removeFrameCallback(frameCallback)
       Choreographer.getInstance().postFrameCallback(frameCallback)
     }
@@ -134,10 +191,11 @@ class LogCatWallpaperService : WallpaperService() {
     private fun hideWallpaper() {
       visible = false
       Choreographer.getInstance().removeFrameCallback(frameCallback)
+      videoOverlayRenderer?.pauseVideo()
       renderer.onSleep()
     }
 
-    private fun drawFrame(frameTimeNanos: Long) {
+    private fun drawCanvasFrame(frameTimeNanos: Long) {
       val surface = surfaceHolder ?: return
       val canvas =
         try {

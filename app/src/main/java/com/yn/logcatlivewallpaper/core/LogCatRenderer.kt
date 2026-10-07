@@ -415,7 +415,12 @@ class LogCatRenderer(
     lastFrameTimeNanos = frameTimeNanos
 
     // Background
-    if (settings.backgroundImage.isNotEmpty()) {
+    if (settings.wallpaperVideo.isNotEmpty()) {
+      if (lastBgPath.isNotEmpty()) {
+        releaseBackground()
+        lastBgPath = ""
+      }
+    } else if (settings.backgroundImage.isNotEmpty()) {
       if (settings.backgroundImage != lastBgPath) {
         loadBackground(settings.backgroundImage)
       }

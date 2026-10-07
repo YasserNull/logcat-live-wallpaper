@@ -13,7 +13,9 @@
     <string name="action_ok">OK</string>
     <string name="action_reset">Reset</string>
     <string name="action_clear_image">Clear image</string>
+    <string name="action_clear_video">Clear video</string>
     <string name="settings_change_background_image">Change Background Image</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">Change Background Color</string>
     <string name="settings_log_level_colors">Change log level colors</string>
     <string name="settings_color_verbose">Verbose Color</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">Brightness</string>
     <string name="settings_color_hex">Hex Color</string>
     <string name="settings_no_background_image">No image selected</string>
+    <string name="settings_no_wallpaper_video">No video selected</string>
     <string name="settings_scroll_speed">Scroll Speed: %.1f</string>
     <string name="settings_scroll_mode">Scroll Mode</string>
     <string name="scroll_mode_smooth">Smooth</string>

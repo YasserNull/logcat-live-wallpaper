@@ -13,7 +13,9 @@
     <string name="action_ok">OK</string>
     <string name="action_reset">Réinitialiser</string>
     <string name="action_clear_image">Effacer l\'image</string>
+    <string name="action_clear_video">Effacer la vidéo</string>
     <string name="settings_change_background_image">Changer l\'image de fond</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">Changer la couleur de fond</string>
     <string name="settings_log_level_colors">Changer les couleurs des niveaux de log</string>
     <string name="settings_color_verbose">Couleur Verbose</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">Luminosité</string>
     <string name="settings_color_hex">Couleur Hex</string>
     <string name="settings_no_background_image">Aucune image sélectionnée</string>
+    <string name="settings_no_wallpaper_video">Aucune vidéo sélectionnée</string>
     <string name="settings_scroll_speed">Vitesse de défilement: %.1f</string>
     <string name="settings_scroll_mode">Mode de défilement</string>
     <string name="scroll_mode_smooth">Fluide</string>

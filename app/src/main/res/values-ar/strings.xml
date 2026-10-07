@@ -13,7 +13,9 @@
     <string name="action_ok">موافق</string>
     <string name="action_reset">إعادة ضبط</string>
     <string name="action_clear_image">مسح الصورة</string>
+    <string name="action_clear_video">مسح الفيديو</string>
     <string name="settings_change_background_image">تغيير صورة الخلفية</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">تغيير لون الخلفية</string>
     <string name="settings_log_level_colors">تغيير ألوان مستويات السجلات</string>
     <string name="settings_color_verbose">لون تفصيلي</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">السطوع</string>
     <string name="settings_color_hex">رمز لون سداسي</string>
     <string name="settings_no_background_image">لم يتم تحديد صورة</string>
+    <string name="settings_no_wallpaper_video">لم يتم تحديد مقطع فيديو</string>
     <string name="settings_scroll_speed">سرعة التمرير: %.1f</string>
     <string name="settings_scroll_mode">وضع التمرير</string>
     <string name="scroll_mode_smooth">سلس</string>

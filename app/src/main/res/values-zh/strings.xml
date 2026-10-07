@@ -13,7 +13,9 @@
     <string name="action_ok">确定</string>
     <string name="action_reset">重置</string>
     <string name="action_clear_image">清除图片</string>
+    <string name="action_clear_video">清除视频</string>
     <string name="settings_change_background_image">更改背景图片</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">更改背景颜色</string>
     <string name="settings_log_level_colors">更改日志级别颜色</string>
     <string name="settings_color_verbose">Verbose 颜色</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">亮度</string>
     <string name="settings_color_hex">十六进制颜色值</string>
     <string name="settings_no_background_image">未选择图片</string>
+    <string name="settings_no_wallpaper_video">未选择视频</string>
     <string name="settings_scroll_speed">滚动速度: %.1f</string>
     <string name="settings_scroll_mode">滚动模式</string>
     <string name="scroll_mode_smooth">平滑</string>

@@ -34,6 +34,8 @@ object Preferences {
     val colorFatal: String = DEFAULT_COLOR_FATAL,
     val colorSilent: String = DEFAULT_COLOR_SILENT,
     val language: String = "en",
+    val wallpaperVideo: String = "",
+    val wallpaperVideoName: String = "",
   )
 
   const val DEFAULT_LOGCAT_COMMAND = "logcat -c && logcat -v tag"
@@ -100,6 +102,8 @@ object Preferences {
       colorFatal = prefs.getString("color_fatal", DEFAULT_COLOR_FATAL) ?: DEFAULT_COLOR_FATAL,
       colorSilent = prefs.getString("color_silent", DEFAULT_COLOR_SILENT) ?: DEFAULT_COLOR_SILENT,
       language = prefs.getString("language", "en") ?: "en",
+      wallpaperVideo = prefs.getString("wallpaper_video", "") ?: "",
+      wallpaperVideoName = prefs.getString("wallpaper_video_name", "") ?: "",
     )
   }
 
@@ -124,6 +128,8 @@ object Preferences {
       .putString("background_color", settings.backgroundColor)
       .putString("background_image", settings.backgroundImage)
       .putString("background_image_name", settings.backgroundImageName)
+      .putString("wallpaper_video", settings.wallpaperVideo)
+      .putString("wallpaper_video_name", settings.wallpaperVideoName)
       .putString("font_path", settings.fontPath)
       .putString("custom_font_name", settings.customFontName)
       .putBoolean("wrap_word", settings.wrapWord)

@@ -13,7 +13,9 @@
     <string name="action_ok">ठीक</string>
     <string name="action_reset">रीसेट करें</string>
     <string name="action_clear_image">छवि साफ़ करें</string>
+    <string name="action_clear_video">वीडियो साफ़ करें</string>
     <string name="settings_change_background_image">पृष्ठभूमि छवि बदलें</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">पृष्ठभूमि का रंग बदलें</string>
     <string name="settings_log_level_colors">लॉग स्तर के रंग बदलें</string>
     <string name="settings_color_verbose">वर्बोज़ रंग</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">चमक</string>
     <string name="settings_color_hex">हेक्स रंग</string>
     <string name="settings_no_background_image">कोई छवि नहीं चुनी गई</string>
+    <string name="settings_no_wallpaper_video">कोई वीडियो नहीं चुना गया</string>
     <string name="settings_scroll_speed">स्क्रॉल गति: %.1f</string>
     <string name="settings_scroll_mode">स्क्रॉल मोड</string>
     <string name="scroll_mode_smooth">सुचारू</string>

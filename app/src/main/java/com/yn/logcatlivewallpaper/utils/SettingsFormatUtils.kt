@@ -55,6 +55,16 @@ fun imageLabel(
   context.getString(R.string.settings_no_background_image)
 }
 
+fun videoLabel(
+  context: Context,
+  wallpaperVideo: String,
+  wallpaperVideoName: String,
+): String = if (wallpaperVideo.isNotEmpty()) {
+  wallpaperVideoName.ifBlank { File(wallpaperVideo).name }
+} else {
+  context.getString(R.string.settings_no_wallpaper_video)
+}
+
 fun permissionLabel(context: Context, permission: String): String = when (permission) {
   "none" -> context.getString(R.string.permission_none)
   "shizuku" -> context.getString(R.string.permission_shizuku)

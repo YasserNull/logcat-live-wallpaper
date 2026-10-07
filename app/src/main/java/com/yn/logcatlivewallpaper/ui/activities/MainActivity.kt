@@ -9,11 +9,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
 import android.view.Choreographer
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
 import android.view.WindowInsetsController
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -39,6 +45,8 @@ import com.yn.logcatlivewallpaper.ui.dialogs.WallpaperTargetDialog
 import com.yn.logcatlivewallpaper.ui.theme.LogCatLiveWallpaperTheme
 import com.yn.logcatlivewallpaper.utils.ApplyStatusBarColor
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStreamReader
 
 class MainActivity : ComponentActivity() {
@@ -260,17 +268,31 @@ class MainActivity : ComponentActivity() {
 
 private class LogCatPreviewView(
   context: Context,
-) : View(context),
+) : FrameLayout(context),
   SharedPreferences.OnSharedPreferenceChangeListener {
   private val renderer = LogCatRenderer(context)
   private var logcatHandle: PermissionManager.LogcatHandle? = null
   private var readerThread: Thread? = null
   private var running = false
+  private var mediaPlayer: MediaPlayer? = null
+  private var currentVideoPath = ""
+  private var videoSurface: Surface? = null
+  private var textureView: TextureView? = null
+  private var currentVideoWidth = 0
+  private var currentVideoHeight = 0
+
+  private val canvasView = object : View(context) {
+    override fun onDraw(canvas: Canvas) {
+      super.onDraw(canvas)
+      renderer.draw(canvas)
+    }
+  }
+
   private val frameCallback =
     object : Choreographer.FrameCallback {
       override fun doFrame(frameTimeNanos: Long) {
         if (running) {
-          invalidate()
+          canvasView.invalidate()
           Choreographer.getInstance().postFrameCallback(this)
         }
       }
@@ -278,9 +300,136 @@ private class LogCatPreviewView(
 
   init {
     Preferences.observer(context).registerOnSharedPreferenceChangeListener(this)
+    val settings = Preferences.getSettings(context)
+    renderer.updateSettings(settings)
+
+    setupViews(settings.wallpaperVideo)
+
     running = true
     resumeRendering()
     startLogcatReader()
+  }
+
+  private fun setupViews(videoPath: String) {
+    removeAllViews()
+    if (videoPath.isNotEmpty()) {
+      val tv = TextureView(context).apply {
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+          override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+            videoSurface = Surface(surface)
+            mediaPlayer?.setSurface(videoSurface)
+            updateTextureTransform(width, height)
+            if (mediaPlayer == null) {
+              startVideoPlayback(videoPath)
+            }
+          }
+
+          override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+            updateTextureTransform(width, height)
+          }
+
+          override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+            videoSurface?.release()
+            videoSurface = null
+            mediaPlayer?.setSurface(null)
+            return true
+          }
+
+          override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+        }
+      }
+      textureView = tv
+      addView(tv)
+    } else {
+      stopVideoPlayback()
+      textureView = null
+    }
+
+    canvasView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+    addView(canvasView)
+  }
+
+  private fun updateTextureTransform(viewWidth: Int, viewHeight: Int) {
+    val tv = textureView ?: return
+    if (viewWidth == 0 || viewHeight == 0 || currentVideoWidth == 0 || currentVideoHeight == 0) return
+
+    val viewRatio = viewWidth.toFloat() / viewHeight
+    val videoRatio = currentVideoWidth.toFloat() / currentVideoHeight
+
+    val scaleX: Float
+    val scaleY: Float
+    if (videoRatio > viewRatio) {
+      scaleX = videoRatio / viewRatio
+      scaleY = 1.0f
+    } else {
+      scaleX = 1.0f
+      scaleY = viewRatio / videoRatio
+    }
+
+    val pivotX = viewWidth / 2f
+    val pivotY = viewHeight / 2f
+
+    val matrix = Matrix()
+    matrix.setScale(scaleX, scaleY, pivotX, pivotY)
+    tv.setTransform(matrix)
+  }
+
+  private fun startVideoPlayback(videoPath: String) {
+    val file = File(videoPath)
+    if (!file.exists() || file.length() == 0L) {
+      return
+    }
+
+    stopVideoPlayback()
+    try {
+      val mp = MediaPlayer().apply {
+        videoSurface?.let { setSurface(it) }
+        FileInputStream(file).use { fis ->
+          setDataSource(fis.fd, 0, file.length())
+        }
+        isLooping = true
+        setVolume(0f, 0f)
+        setOnVideoSizeChangedListener { _, w, h ->
+          if (w > 0 && h > 0) {
+            currentVideoWidth = w
+            currentVideoHeight = h
+            textureView?.let { tv ->
+              updateTextureTransform(tv.width, tv.height)
+            }
+          }
+        }
+        setOnPreparedListener { player ->
+          if (running) {
+            player.start()
+          }
+        }
+        setOnErrorListener { _, _, _ ->
+          stopVideoPlayback()
+          true
+        }
+        prepareAsync()
+      }
+      mediaPlayer = mp
+      currentVideoPath = videoPath
+    } catch (_: Exception) {
+      stopVideoPlayback()
+    }
+  }
+
+  private fun stopVideoPlayback() {
+    try {
+      mediaPlayer?.let { mp ->
+        if (mp.isPlaying) {
+          mp.stop()
+        }
+        mp.reset()
+        mp.release()
+      }
+    } catch (_: Exception) {
+    }
+    mediaPlayer = null
+    currentVideoPath = ""
   }
 
   private fun resumeRendering() {
@@ -288,7 +437,21 @@ private class LogCatPreviewView(
     renderer.resetFrameClock()
     Choreographer.getInstance().removeFrameCallback(frameCallback)
     Choreographer.getInstance().postFrameCallback(frameCallback)
-    postInvalidateOnAnimation()
+    canvasView.postInvalidateOnAnimation()
+    try {
+      if (mediaPlayer?.isPlaying != true && currentVideoPath.isNotEmpty()) {
+        mediaPlayer?.start()
+      }
+    } catch (_: Exception) {}
+  }
+
+  private fun pauseRendering() {
+    Choreographer.getInstance().removeFrameCallback(frameCallback)
+    try {
+      if (mediaPlayer?.isPlaying == true) {
+        mediaPlayer?.pause()
+      }
+    } catch (_: Exception) {}
   }
 
   private fun startLogcatReader() {
@@ -325,14 +488,19 @@ private class LogCatPreviewView(
     super.onDetachedFromWindow()
     Preferences.observer(context).unregisterOnSharedPreferenceChangeListener(this)
     running = false
-    Choreographer.getInstance().removeFrameCallback(frameCallback)
+    pauseRendering()
+    stopVideoPlayback()
     stopLogcatReader()
+    videoSurface?.release()
+    videoSurface = null
   }
 
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
     if (hasWindowFocus) {
       resumeRendering()
+    } else {
+      pauseRendering()
     }
   }
 
@@ -343,6 +511,8 @@ private class LogCatPreviewView(
     super.onVisibilityChanged(changedView, visibility)
     if (visibility == VISIBLE) {
       resumeRendering()
+    } else {
+      pauseRendering()
     }
   }
 
@@ -350,16 +520,17 @@ private class LogCatPreviewView(
     sharedPreferences: SharedPreferences?,
     key: String?,
   ) {
-    renderer.updateSettings(Preferences.getSettings(context))
+    val settings = Preferences.getSettings(context)
+    renderer.updateSettings(settings)
+    if (key == "wallpaper_video") {
+      if (settings.wallpaperVideo != currentVideoPath) {
+        setupViews(settings.wallpaperVideo)
+      }
+    }
     if (key == "permission" || key == "logcat_command") {
       stopLogcatReader()
       renderer.clear()
       startLogcatReader()
     }
-  }
-
-  override fun onDraw(canvas: Canvas) {
-    super.onDraw(canvas)
-    renderer.draw(canvas)
   }
 }

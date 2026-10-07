@@ -13,7 +13,9 @@
     <string name="action_ok">OK</string>
     <string name="action_reset">リセット</string>
     <string name="action_clear_image">画像をクリア</string>
+    <string name="action_clear_video">動画をクリア</string>
     <string name="settings_change_background_image">背景画像を変更</string>
+    <string name="settings_wallpaper_video">Wallpaper video</string>
     <string name="settings_change_background_color">背景色を変更</string>
     <string name="settings_log_level_colors">ログレベルの色を変更</string>
     <string name="settings_color_verbose">Verbose の色</string>
@@ -27,6 +29,7 @@
     <string name="settings_color_brightness">明るさ</string>
     <string name="settings_color_hex">Hex カラー</string>
     <string name="settings_no_background_image">画像が選択されていません</string>
+    <string name="settings_no_wallpaper_video">動画が選択されていません</string>
     <string name="settings_scroll_speed">スクロール速度: %.1f</string>
     <string name="settings_scroll_mode">スクロールモード</string>
     <string name="scroll_mode_smooth">スムーズ</string>
